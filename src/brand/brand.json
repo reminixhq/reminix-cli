@@ -1,0 +1,39 @@
+{
+  "$schema": "./brand.schema.json",
+  "status": "ready",
+  "name": "reminix",
+  "productName": "Reminix",
+  "legalName": "Omsome L.L.C-FZ",
+  "releaseMirrors": true,
+  "domain": "reminix.com",
+  "summary": "Reminix lets your whole team, your software and your agents run your team's scripts, and the ones AI writes: one publish gives a form, an API and an agent tool, with keys kept out of the code and every run on record.",
+  "expectedAssets": [
+    "logo.svg",
+    "logo-dark.svg",
+    "mark.svg",
+    "favicon.svg",
+    "favicon-internal.svg",
+    "og-default.png",
+    "apple-touch-icon.png"
+  ],
+  "colors": {
+    "brand": "#1F5A45",
+    "brandForeground": "#F2F5F3",
+    "brandDark": "#8DBFA3",
+    "brandDarkForeground": "#1C2421",
+    "bench": "#1F5A45",
+    "moss": "#8DBFA3",
+    "chalk": "#F2F5F3",
+    "graphite": "#1C2421",
+    "tag": "#F0C4D1",
+    "hold": "#D9902F"
+  },
+  "fonts": {
+    "display": "Bricolage Grotesque Variable",
+    "body": "Figtree Variable"
+  },
+  "signIn": {
+    "providerOrder": ["github", "google"],
+    "emailSignUp": "button"
+  }
+}
