@@ -1,6 +1,6 @@
 {
   "name": "@reminix/cli",
-  "version": "1.0.0-rc.3",
+  "version": "1.0.0-rc.4",
   "description": "Reminix command line",
   "type": "module",
   "bin": {
@@ -8,7 +8,8 @@
   },
   "files": [
     "dist",
-    "NOTICE"
+    "NOTICE",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "build": "node build.mjs",
@@ -16,7 +17,7 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@reminix/sdk": "1.0.0-rc.3",
+    "@reminix/sdk": "1.0.0-rc.4",
     "@types/node": "26.6.5",
     "commander": "15.0.0",
     "smol-toml": "1.9.1",

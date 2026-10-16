@@ -59,6 +59,7 @@ export type ManifestSignIn = {
 const optional = manifest as typeof manifest & {
   summary?: string;
   legalName?: string;
+  discordInvite?: string;
   securityContact?: string;
   supportContact?: string;
   features?: ManifestFeatures;
@@ -91,6 +92,12 @@ export const brand = {
    */
   legalName: optional.legalName ?? manifest.productName,
   domain: manifest.domain,
+  /**
+   * Where the product's community talks: https://<domain>/discord, the
+   * site's redirect to brand.json `discordInvite` (pnpm brand:sync); null
+   * when the product has no Discord.
+   */
+  discord: optional.discordInvite ? `https://${manifest.domain}/discord` : null,
   /** One sentence: what the product is — llms.txt and the agent skill lead with it. */
   summary: optional.summary ?? `${manifest.productName} documentation and API.`,
   /** Where vulnerability reports go — /.well-known/security.txt and /security publish it. Defaults to security@<domain>. */
