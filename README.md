@@ -54,9 +54,12 @@ agents.
 - [Discord](https://reminix.com/discord)
 - [Report a security issue](https://reminix.com/security/)
 
-## About this package
+## Contributing
 
 This repository is generated from Reminix's source on each
 release, so pull requests are ported there and credited (see
 [CONTRIBUTING.md](https://github.com/reminixhq/reminix-cli/blob/main/CONTRIBUTING.md)).
+
+## License
+
 Licensed under the Apache License 2.0.

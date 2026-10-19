@@ -518,9 +518,11 @@ const defineRun: Define = (command, ctx) =>
       "--out <dir>",
       "save the files the run writes here (else their links are printed)",
     )
+    // --number, like `publish --number`: `--version` is the CLI's own
+    // (it prints the CLI's version, whatever command it follows).
     .option(
-      "--version <n>",
-      "test-run this version (a draft) instead of the published one",
+      "--number <n>",
+      "test-run version n (a draft) instead of the published one",
     )
     .option("--log", "also print what the run logged (to stderr)")
     .option("--workspace <slug>", "act in this workspace for one call")
@@ -532,7 +534,7 @@ const defineRun: Define = (command, ctx) =>
           input: string;
           file: string[];
           out?: string;
-          version?: string;
+          number?: string;
           log?: boolean;
           workspace?: string;
           json?: boolean;
@@ -595,16 +597,16 @@ const defineRun: Define = (command, ctx) =>
           }
         }
         if (
-          options.version !== undefined &&
-          !/^[1-9]\d*$/.test(options.version)
+          options.number !== undefined &&
+          !/^[1-9]\d*$/.test(options.number)
         ) {
-          throw new Error("--version: a version number, e.g. 2");
+          throw new Error("--number: a version number, like --number 2");
         }
         let run = (await call(
           "POST",
-          options.version === undefined
+          options.number === undefined
             ? `/v1/scripts/${encodeURIComponent(slug)}/runs`
-            : `/v1/scripts/${encodeURIComponent(slug)}/versions/${options.version}/runs`,
+            : `/v1/scripts/${encodeURIComponent(slug)}/versions/${options.number}/runs`,
           { inputs, via: "cli" },
         )) as {
           id: string;
@@ -660,7 +662,10 @@ const defineRun: Define = (command, ctx) =>
         if (options.json) {
           ctx.io.stdout(json(run));
         } else if (run.status === "succeeded") {
-          ctx.io.stdout(json(run.output));
+          // Text as it is (no quotes), anything else as JSON.
+          ctx.io.stdout(
+            typeof run.output === "string" ? run.output : json(run.output),
+          );
         }
         if (run.status !== "succeeded") {
           throw new Error(`The run failed (${run.id}): ${run.error}`);
@@ -689,9 +694,9 @@ export const scriptCommands: Command = (program, ctx) => {
   );
   // `run` starts a run (or a draft's test run) and follows it.
   defineRun(group.command("run <slug>"), ctx).description(
-    `Run a script and print its output (--version to test a draft; shortcut: ${brand.name} run)`,
+    `Run a script and print its output (--number to test a draft; shortcut: ${brand.name} run)`,
   );
   defineRun(program.command("run <slug>"), ctx).description(
-    `Short for ${brand.name} scripts run: run a script and print its output (--version to test a draft)`,
+    `Short for ${brand.name} scripts run: run a script and print its output (--number to test a draft)`,
   );
 };

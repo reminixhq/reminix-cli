@@ -512,6 +512,22 @@ describe("scripts run", () => {
     expect(short.err).toEqual(long.err);
   });
 
+  it("--number test-runs that version, and text output prints as it is", async () => {
+    const t = terminal({
+      id: "run_3",
+      status: "succeeded",
+      output: "hello ['--name', 'umair']",
+      error: null,
+    });
+    // Through the shortcut and the CLI's root, where `--version` would
+    // print the CLI's version instead of running.
+    expect(
+      await run(["run", "hello", "--number", "2", "--workspace", "acme"], t.io),
+    ).toBe(0);
+    expect(t.calls[0]?.path).toBe("/v1/scripts/hello/versions/2/runs");
+    expect(t.out).toEqual(["hello ['--name', 'umair']"]);
+  });
+
   it("fails on a failed run and on inputs that are not a JSON object", async () => {
     const failed = terminal({
       id: "run_2",

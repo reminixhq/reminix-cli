@@ -6,11 +6,10 @@
   "legalName": "Omsome L.L.C-FZ",
   "releaseMirrors": true,
   "mirrorProfile": {
-    "tagline": "run your team's scripts from a form, an API or an agent tool, with every run on record",
     "topics": ["scripts", "automation", "ai-agents", "mcp", "api-client", "sdk"]
   },
   "domain": "reminix.com",
-  "discordInvite": "https://discord.gg/PSw7v92rB",
+  "discordInvite": "https://discord.gg/UU9NbEcNQj",
   "summary": "Reminix lets your whole team, your software and your agents run your team's scripts, and the ones AI writes: one publish gives a form, an API and an agent tool, with keys kept out of the code and every run on record.",
   "expectedAssets": [
     "logo.svg",

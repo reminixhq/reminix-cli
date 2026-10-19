@@ -11,15 +11,33 @@ import { configPath } from "./config.ts";
 
 const PAT = `pat_${brand.identifier}_abcdefghijklmnop`;
 
-/** What /cli/authorize does after Allow: a form POST to the listener. */
-function handOff(pageUrl: string, fields: Record<string, string>) {
+/**
+ * What /cli/authorize does after Allow: encrypt the token to the page's
+ * `key` with WebCrypto, then redirect to the listener (a GET).
+ */
+async function handOff(pageUrl: string, fields: Record<string, string>) {
   const url = new URL(pageUrl);
   const port = url.searchParams.get("port");
-  return fetch(`http://127.0.0.1:${port}/callback`, {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams(fields),
-  });
+  const query = new URLSearchParams(fields);
+  const token = query.get("token");
+  if (token !== null) query.set("token", await seal(url, token));
+  return fetch(`http://127.0.0.1:${port}/callback?${query}`);
+}
+
+async function seal(pageUrl: URL, token: string) {
+  const key = await crypto.subtle.importKey(
+    "spki",
+    Buffer.from(pageUrl.searchParams.get("key")!, "base64url"),
+    { name: "RSA-OAEP", hash: "SHA-256" },
+    false,
+    ["encrypt"],
+  );
+  const sealed = await crypto.subtle.encrypt(
+    { name: "RSA-OAEP" },
+    key,
+    new TextEncoder().encode(token),
+  );
+  return Buffer.from(sealed).toString("base64url");
 }
 
 describe("browser login (loopback listener)", () => {
@@ -42,11 +60,17 @@ describe("browser login (loopback listener)", () => {
     // A hand-off with another state is refused and the login keeps waiting.
     const forged = await handOff(page, { state: "someone-else", token: "x" });
     expect(forged.status).toBe(400);
-    const real = await handOff(page, {
-      state: url.searchParams.get("state")!,
-      token: PAT,
-    });
+    // The token in the clear is refused too: only a token sealed to this
+    // login's key is taken.
+    const state = url.searchParams.get("state")!;
+    const port = url.searchParams.get("port");
+    const clear = await fetch(
+      `http://127.0.0.1:${port}/callback?${new URLSearchParams({ state, token: PAT })}`,
+    );
+    expect(clear.status).toBe(400);
+    const real = await handOff(page, { state, token: PAT });
     expect(real.status).toBe(200);
+    expect(real.headers.get("cache-control")).toBe("no-store");
     await expect(login).resolves.toBe(PAT);
   });
 
