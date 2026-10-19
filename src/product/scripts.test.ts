@@ -166,7 +166,16 @@ function publishTerminal(
         );
       }
       if (path.endsWith("/versions"))
-        return Response.json({ number: 3 }, { status: 201 });
+        return Response.json(
+          body?.publish && options.approval
+            ? {
+                number: 3,
+                published: false,
+                approval: { approveUrl: "https://app.example/approvals/a_1" },
+              }
+            : { number: 3, published: body?.publish === true },
+          { status: 201 },
+        );
       if (path.endsWith("/publish"))
         return Response.json(
           options.approval
@@ -212,13 +221,9 @@ describe("publish", () => {
     );
     expect(t.err).toEqual([]);
     expect(code).toBe(0);
-    expect(t.routes()).toEqual([
-      "GET /v1/scripts/refund-customer",
-      "POST /v1/scripts",
-      "POST /v1/scripts/refund-customer/versions",
-      "POST /v1/scripts/refund-customer/versions/3/publish",
-    ]);
-    expect(t.calls[2].body).toMatchObject({
+    // One call: created if missing, named as reminix.json says, published.
+    expect(t.routes()).toEqual(["POST /v1/scripts/refund-customer/versions"]);
+    expect(t.calls[0].body).toMatchObject({
       command: "python refund.py {orderId}",
       build: null,
       timeout: 120,
@@ -227,9 +232,14 @@ describe("publish", () => {
       secrets: {
         STRIPE_KEY: { host: "api.stripe.com", header: "Authorization" },
       },
+      create: true,
+      name: "Refund a customer",
+      publish: true,
     });
+    // The README goes in the folder: the API reads it there.
+    expect(t.calls[0].body).not.toHaveProperty("readme");
     expect(
-      listed(Buffer.from(String(t.calls[2].body?.archive), "base64")),
+      listed(Buffer.from(String(t.calls[0].body?.archive), "base64")),
     ).toEqual(["refund.py", "reminix.json"]);
     expect(JSON.parse(t.out.join("\n"))).toMatchObject({
       version: { number: 3 },
@@ -257,7 +267,7 @@ describe("publish", () => {
     expect(
       await run(["publish", dir, "--draft", "--workspace", "acme"], t.io),
     ).toBe(0);
-    expect(t.routes().some((r) => r.endsWith("/publish"))).toBe(false);
+    expect(t.calls[0].body).toMatchObject({ publish: false });
     expect(t.out).toEqual([
       `Uploaded refund-customer version 3 as a draft. Publish it in the app, or run \`${brand.name} publish\` again without --draft.`,
     ]);
@@ -366,16 +376,13 @@ describe("publish", () => {
     mkdirSync(dir);
     writeFileSync(join(dir, "sync.mjs"), "console.log(1)\n");
     expect(await run(["publish", dir, "--workspace", "acme"], t.io)).toBe(0);
-    const create = t.calls.find(
-      (c) => c.method === "POST" && c.path === "/v1/scripts",
-    );
-    expect(create?.body).toMatchObject({
-      slug: "nightly-sync",
-      name: "Nightly sync",
-    });
-    const upload = t.calls.find((c) => c.path.endsWith("/versions"));
-    expect(upload?.body).not.toHaveProperty("command");
-    expect(upload?.body).not.toHaveProperty("inputSchema");
+    expect(t.routes()).toEqual(["POST /v1/scripts/nightly-sync/versions"]);
+    const upload = t.calls[0];
+    expect(upload.body).toMatchObject({ create: true, publish: true });
+    // Worked out, not set: the API names it (and never renames it later).
+    expect(upload.body).not.toHaveProperty("name");
+    expect(upload.body).not.toHaveProperty("command");
+    expect(upload.body).not.toHaveProperty("inputSchema");
     expect(t.out.join("\n")).toContain("Node script (sync.mjs)");
   });
 
@@ -526,6 +533,50 @@ describe("scripts run", () => {
     ).toBe(0);
     expect(t.calls[0]?.path).toBe("/v1/scripts/hello/versions/2/runs");
     expect(t.out).toEqual(["hello ['--name', 'umair']"]);
+  });
+
+  it("waits through a person's approval, and says why a run was cancelled", async () => {
+    const answers = [
+      {
+        id: "run_4",
+        status: "awaiting_approval",
+        output: null,
+        error: null,
+        approval: { approveUrl: "https://app.example/approvals/apr_1" },
+      },
+      {
+        id: "run_4",
+        status: "cancelled",
+        output: null,
+        error: "The approval was denied",
+      },
+    ];
+    const t = terminal({});
+    const fetch = t.io.fetch;
+    t.io.fetch = async (input, init) => {
+      await fetch(input, init);
+      return Response.json(answers.shift() ?? answers[0]);
+    };
+    expect(await run(["run", "x", "--workspace", "acme"], t.io)).not.toBe(0);
+    expect(t.calls.map((c) => `${c.method} ${c.path}`)).toEqual([
+      "POST /v1/scripts/x/runs",
+      "GET /v1/runs/run_4",
+    ]);
+    expect(t.err.join("\n")).toContain(
+      "Waiting for a person's approval (run run_4): https://app.example/approvals/apr_1",
+    );
+    expect(t.err.join("\n")).toContain(
+      "The run was cancelled (run_4): The approval was denied",
+    );
+  });
+
+  it("--no-wait answers at once with a held run", async () => {
+    const t = terminal({ id: "run_5", status: "awaiting_approval" });
+    expect(
+      await run(["run", "x", "--no-wait", "--workspace", "acme"], t.io),
+    ).toBe(0);
+    expect(t.calls).toHaveLength(1);
+    expect(t.out).toEqual(["Run run_5 is awaiting_approval."]);
   });
 
   it("fails on a failed run and on inputs that are not a JSON object", async () => {

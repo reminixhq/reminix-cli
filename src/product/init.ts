@@ -1,9 +1,16 @@
-import { existsSync, readdirSync, writeFileSync } from "node:fs";
-import { basename, extname, join, resolve } from "node:path";
+import { existsSync, writeFileSync } from "node:fs";
+import { basename, join, resolve } from "node:path";
 
 import { brand } from "../brand/index.ts";
+import {
+  detectScript,
+  inputSchemaForCommand,
+  slugOf,
+  titleOf,
+} from "../internal/domain/product/detect.ts";
 
 import type { Command } from "../cli.ts";
+import { localFolder, scriptFiles } from "./scripts.ts";
 
 /**
  * `init [command]` (docs/product/roadmap.md slices 9 and 8): makes a
@@ -14,79 +21,38 @@ import type { Command } from "../cli.ts";
  * team already has.
  */
 
-/** A slug the API accepts, from a folder name ("My Report!" → "my-report"). */
-export function slugFrom(name: string): string {
-  const slug = name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^[^a-z]+/, "")
-    .replace(/-+$/, "")
-    .slice(0, 64)
-    .replace(/-+$/, "");
-  return slug.length >= 2 ? slug : "my-script";
-}
-
-const titleFrom = (slug: string) =>
-  slug
-    .split("-")
-    .filter(Boolean)
-    .map((w, i) => (i === 0 ? w[0].toUpperCase() + w.slice(1) : w))
-    .join(" ");
-
-/** The program for a script file, by its extension. */
-export function programFor(file: string): string {
-  const ext = extname(file).toLowerCase();
-  if (ext === ".py") return "python";
-  if ([".js", ".mjs", ".cjs", ".ts", ".mts"].includes(ext)) return "node";
-  if (ext === ".sh") return "sh";
-  if (ext === "") return `./${file}`;
-  throw new Error(
-    `${file}: say how to run it, like: ${brand.name} init "python ${file} --month {month}"`,
-  );
-}
-
-const SCRIPT_FILE = /\.(py|sh|js|mjs|cjs|ts|mts)$/i;
-const NOT_A_SCRIPT = /(\.config\.|^setup\.py$|^conftest\.py$|\.d\.ts$)/i;
-
-/** The one script file in the folder, when there is exactly one. */
-function onlyScript(dir: string): string {
-  const files = readdirSync(dir).filter(
-    (f) => SCRIPT_FILE.test(f) && !NOT_A_SCRIPT.test(f),
-  );
-  if (files.length !== 1) {
-    throw new Error(
-      `${files.length === 0 ? "No script file here" : `Several script files here (${files.join(", ")})`} — say which and how it runs, like: ${brand.name} init "python report.py --month {month}"`,
-    );
-  }
-  return files[0];
-}
+const INIT_HELP = `Say which file and how it runs, like: ${brand.name} init "python report.py --month {month}"`;
 
 /**
  * The command line: as given when it is one (`python x.py {a}`); for a
- * file name, its program and the file.
+ * file name, its program and the file; with nothing given, what
+ * `publish` would work out for the folder. The same detection publish
+ * and the API use (@repo/domain/product/detect), so init and publish
+ * agree on every folder.
  */
 export function commandFor(dir: string, given?: string): string {
-  const line = given?.trim() || onlyScript(dir);
-  return /\s|\{/.test(line) ? line : `${programFor(line)} ${line}`;
+  const line = given?.trim();
+  if (line && /\s|\{/.test(line)) return line;
+  const folder = localFolder(dir, line ? [line] : scriptFiles(dir));
+  const detection = detectScript(folder);
+  if (!detection.ok) {
+    throw new Error(
+      `${detection.error.replace(/ Pass --command .*$/, "")} ${INIT_HELP}`,
+    );
+  }
+  return detection.value.command;
 }
 
-/** An input for each `{name}`: required, unless inside `[ … ]`. */
+/** An input for each `{name}` (required unless inside `[ … ]`), each with a description to fill in. */
 export function inputSchemaFor(command: string) {
-  const optional = new Set(
-    [...command.matchAll(/\[[^\]]*\]/g)].flatMap((group) =>
-      [...group[0].matchAll(/\{([A-Za-z_][\w-]*)\}/g)].map((m) => m[1]),
-    ),
-  );
-  const names = [
-    ...new Set(
-      [...command.matchAll(/\{([A-Za-z_][\w-]*)\}/g)].map((m) => m[1]),
-    ),
-  ];
+  const schema = inputSchemaForCommand(command);
   return {
-    type: "object",
-    required: names.filter((name) => !optional.has(name)),
+    ...schema,
     properties: Object.fromEntries(
-      names.map((name) => [name, { type: "string", description: "" }]),
+      Object.entries(schema.properties).map(([name, property]) => [
+        name,
+        { ...property, description: "" },
+      ]),
     ),
   };
 }
@@ -98,14 +64,18 @@ export function scaffold(dir: string, given?: string): string[] {
     throw new Error(`${manifest} already exists`);
   }
   const command = commandFor(dir, given);
-  const slug = slugFrom(basename(resolve(dir)));
+  const detected = detectScript(localFolder(dir, scriptFiles(dir)));
+  const slug =
+    (detected.ok ? detected.value.slug : undefined) ??
+    slugOf(basename(resolve(dir))) ??
+    "my-script";
   const created: string[] = [];
   writeFileSync(
     manifest,
     `${JSON.stringify(
       {
         slug,
-        name: titleFrom(slug),
+        name: titleOf(slug),
         description: "",
         command,
         tags: [],
@@ -120,7 +90,7 @@ export function scaffold(dir: string, given?: string): string[] {
   if (!existsSync(join(dir, "README.md"))) {
     writeFileSync(
       join(dir, "README.md"),
-      `# ${titleFrom(slug)}\n\nWhat it does, when to use it, and what its inputs mean.\n`,
+      `# ${titleOf(slug)}\n\nWhat it does, when to use it, and what its inputs mean.\n`,
     );
     created.push("README.md");
   }

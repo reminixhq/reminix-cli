@@ -16,28 +16,6 @@ import { json } from "../output.ts";
 
 type File = Schemas["File"];
 
-/** A file's type by its extension; the API takes it as the upload's. */
-const TYPES: Record<string, string> = {
-  csv: "text/csv",
-  tsv: "text/tab-separated-values",
-  txt: "text/plain",
-  md: "text/markdown",
-  json: "application/json",
-  xml: "application/xml",
-  pdf: "application/pdf",
-  zip: "application/zip",
-  gz: "application/gzip",
-  ofx: "application/x-ofx",
-  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  xls: "application/vnd.ms-excel",
-  png: "image/png",
-  jpg: "image/jpeg",
-  jpeg: "image/jpeg",
-};
-export const typeOf = (path: string) =>
-  TYPES[path.split(".").pop()?.toLowerCase() ?? ""] ??
-  "application/octet-stream";
-
 /** Uploads a file from disk; its id is what a run's file input takes. */
 export async function uploadPath(
   ctx: CliContext,
@@ -53,8 +31,8 @@ export async function uploadPath(
     });
   }
   return uploadFile(ctx.client({ workspace }), {
+    // No type: the API takes it from the name (one table for every client).
     name: basename(path),
-    type: typeOf(path),
     data: new Uint8Array(data),
   });
 }

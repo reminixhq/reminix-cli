@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { loadScriptDir } from "./scripts.ts";
-import { commandFor, inputSchemaFor, scaffold, slugFrom } from "./init.ts";
+import { commandFor, inputSchemaFor, scaffold } from "./init.ts";
 
 describe("init", () => {
   it("describes the script already in the folder, which then packs as-is", () => {
@@ -59,9 +59,28 @@ describe("init", () => {
     });
   });
 
-  it("derives slugs the API accepts", () => {
-    expect(slugFrom("My Report!")).toBe("my-report");
-    expect(slugFrom("2024 sales")).toBe("sales");
-    expect(slugFrom("x")).toBe("my-script");
+  it("agrees with publish on a folder init once refused", () => {
+    // Two scripts, one of them the entry: publish runs main.py, and so
+    // does init (it had its own rules and refused "Several script files").
+    const dir = mkdtempSync(join(tmpdir(), "init-"));
+    writeFileSync(join(dir, "main.py"), "");
+    writeFileSync(join(dir, "helpers.py"), "");
+    writeFileSync(join(dir, "test_main.py"), "");
+    expect(commandFor(dir)).toBe("python main.py");
+    expect(loadScriptDir(dir).detected?.command).toBe("python main.py");
+    // A package's name sets the slug, as for publish.
+    const pkg = mkdtempSync(join(tmpdir(), "init-"));
+    writeFileSync(
+      join(pkg, "package.json"),
+      JSON.stringify({ name: "@acme/monthly-report", main: "index.js" }),
+    );
+    expect(scaffold(pkg)).toContain("reminix.json");
+    expect(
+      JSON.parse(readFileSync(join(pkg, "reminix.json"), "utf8")),
+    ).toMatchObject({
+      slug: "monthly-report",
+      name: "Monthly report",
+      command: "node index.js",
+    });
   });
 });

@@ -79,7 +79,7 @@ export function readReadme(dir: string): string | null {
 export type PublishFlags = { command?: string; name?: string; slug?: string };
 
 /** The folder as detection reads it (the same function the API runs). */
-function localFolder(dir: string, files: string[]): Folder {
+export function localFolder(dir: string, files: string[]): Folder {
   return {
     files,
     read: (path) => {
@@ -119,6 +119,8 @@ export function loadScriptDir(
   files: string[];
   readme: string | null;
   detected: Detected | null;
+  /** The name and description reminix.json or the flags set (not worked out). */
+  explicit: { name?: string; description?: string };
 } {
   const manifestPath = join(dir, "reminix.json");
   let given: Partial<Manifest> = {};
@@ -164,6 +166,14 @@ export function loadScriptDir(
     archive: pack(dir, files),
     readme: readReadme(dir),
     detected: command ? null : detected,
+    explicit: {
+      ...((given.name ?? flags.name) !== undefined
+        ? { name: given.name ?? flags.name }
+        : {}),
+      ...(given.description !== undefined
+        ? { description: given.description }
+        : {}),
+    },
   };
 }
 
@@ -234,10 +244,11 @@ export function pack(dir: string, files: string[]): Buffer {
   return tar.stdout;
 }
 
-type ApiFailure = Error & { status?: number };
-
-/** How often `run` checks on a long run while following it. */
+/** How often `run` checks on a run while following it. */
 export const POLL_MS = 2000;
+
+/** The statuses a run ends in; any other is followed. */
+const ENDED = new Set(["succeeded", "failed", "cancelled"]);
 
 /** A command's options and action, shared by the long form and its shortcut. */
 type Define = (command: Commander, ctx: CliContext) => Commander;
@@ -335,7 +346,7 @@ async function publishFolder(
   dir: string,
   options: PublishOptions,
 ) {
-  const { manifest, archive, readme, detected } = loadScriptDir(dir, options);
+  const { manifest, archive, explicit, detected } = loadScriptDir(dir, options);
   if (options.plan) {
     return {
       slug: manifest.slug,
@@ -374,16 +385,11 @@ async function publishFolder(
         : `Published ${manifest.slug} version ${number}.`,
     };
   }
-  try {
-    await call("GET", `/v1/scripts/${slug}`);
-  } catch (error) {
-    if ((error as ApiFailure).status !== 404) throw error;
-    await call("POST", "/v1/scripts", {
-      slug: manifest.slug,
-      name: manifest.name,
-      description: manifest.description,
-    });
-  }
+  // One call: the API creates the script if it's new, takes the name and
+  // description reminix.json or the flags set (one changed later is
+  // changed there too; one set in the app stays when they don't), takes
+  // README.md from the folder, and publishes unless --draft — or files it
+  // for a person's approval, by the same rule as `publish --number`.
   const version = (await call("POST", `/v1/scripts/${slug}/versions`, {
     command: manifest.command,
     build: manifest.build ?? null,
@@ -394,22 +400,16 @@ async function publishFolder(
     env: manifest.env,
     tags: manifest.tags,
     timeout: manifest.timeout,
-    readme,
     archive: archive.toString("base64"),
     via: "cli",
-  })) as { number: number };
-  let script: unknown = null;
-  let approveUrl: string | null = null;
-  if (!options.draft) {
-    script = await call(
-      "POST",
-      `/v1/scripts/${slug}/versions/${version.number}/publish`,
-    );
-    // Sent to a person instead (the workspace requires a second one).
-    approveUrl =
-      (script as { approval?: { approveUrl: string } }).approval?.approveUrl ??
-      null;
-  }
+    create: true,
+    ...explicit,
+    publish: !options.draft,
+  })) as { number: number; approval?: { approveUrl: string } };
+  // `--json` shows the version (with `published` and any `approval`).
+  const script: unknown = null;
+  // Sent to a person instead (the workspace requires a second one).
+  const approveUrl = version.approval?.approveUrl ?? null;
   const line = approveUrl
     ? `Uploaded ${manifest.slug} version ${version.number}; publishing waits for a person's approval: ${approveUrl}`
     : options.draft
@@ -525,6 +525,10 @@ const defineRun: Define = (command, ctx) =>
       "test-run version n (a draft) instead of the published one",
     )
     .option("--log", "also print what the run logged (to stderr)")
+    .option(
+      "--no-wait",
+      "answer at once with a run held for approval or still running, instead of following it",
+    )
     .option("--workspace <slug>", "act in this workspace for one call")
     .option("--json", "print the whole run, not just its output")
     .action(
@@ -536,6 +540,7 @@ const defineRun: Define = (command, ctx) =>
           out?: string;
           number?: string;
           log?: boolean;
+          wait: boolean;
           workspace?: string;
           json?: boolean;
         },
@@ -578,22 +583,15 @@ const defineRun: Define = (command, ctx) =>
               spec.slice(at + 1),
             ]);
           }
-          const script = (await call(
-            "GET",
-            `/v1/scripts/${encodeURIComponent(slug)}`,
-          )) as {
-            inputSchema: { properties?: Record<string, { type?: unknown }> };
-          };
-          const properties = script.inputSchema?.properties ?? {};
+          // One file goes as one id: the API takes it for a list input
+          // too, so there's no schema to read (a draft's may differ).
           for (const [name, paths] of byInput) {
             const ids: string[] = [];
             for (const path of paths) {
               ids.push((await uploadPath(ctx, path, options.workspace)).id);
             }
             (inputs as Record<string, unknown>)[name] =
-              properties[name]?.type === "array" || ids.length > 1
-                ? ids
-                : ids[0];
+              ids.length > 1 ? ids : ids[0];
           }
         }
         if (
@@ -616,17 +614,24 @@ const defineRun: Define = (command, ctx) =>
           approval?: { approveUrl: string } | null;
           files?: Schemas["File"][];
         };
-        if (run.status === "awaiting_approval") {
+        if (!options.wait && !ENDED.has(run.status)) {
           ctx.io.stdout(
-            options.json
-              ? json(run)
-              : `Waiting for a person's approval (run ${run.id}): ${run.approval?.approveUrl ?? "see Approvals in the app"}`,
+            options.json ? json(run) : `Run ${run.id} is ${run.status}.`,
           );
           return;
         }
+        // Held for a person: say where to approve it (once), then wait for
+        // it like the SDKs do — it runs once approved, or ends cancelled.
+        const approveUrl = run.approval?.approveUrl;
+        if (run.status === "awaiting_approval") {
+          ctx.io.stderr(
+            `Waiting for a person's approval (run ${run.id}): ${approveUrl ?? "see Approvals in the app"}`,
+          );
+        }
         let printed = 0;
         const printLog = async () => {
-          if (!options.log) return;
+          // Nothing has run yet while it waits for a person.
+          if (!options.log || run.status === "awaiting_approval") return;
           const { lines } = (await call(
             "GET",
             `/v1/runs/${encodeURIComponent(run.id)}/logs`,
@@ -634,8 +639,9 @@ const defineRun: Define = (command, ctx) =>
           for (const line of lines.slice(printed)) ctx.io.stderr(line);
           printed = Math.max(printed, lines.length);
         };
-        // A long run (slice 6) answers while it runs: follow it to the end.
-        while (run.status === "running") {
+        // A long run (slice 6) or a held one answers before it ends:
+        // follow every status that isn't an end, as the SDKs do.
+        while (!ENDED.has(run.status)) {
           await printLog();
           await new Promise((resolve) => setTimeout(resolve, POLL_MS));
           run = (await call(
@@ -667,8 +673,16 @@ const defineRun: Define = (command, ctx) =>
             typeof run.output === "string" ? run.output : json(run.output),
           );
         }
+        if (run.status === "cancelled") {
+          // The API's error says why (an approval denied or expired, …).
+          throw new Error(
+            `The run was cancelled (${run.id}): ${run.error ?? "no reason given"}`,
+          );
+        }
         if (run.status !== "succeeded") {
-          throw new Error(`The run failed (${run.id}): ${run.error}`);
+          throw new Error(
+            `The run failed (${run.id}): ${run.error ?? "no error message"}`,
+          );
         }
       },
     );

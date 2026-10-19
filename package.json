@@ -1,6 +1,6 @@
 {
   "name": "@reminix/cli",
-  "version": "1.0.0-rc.6",
+  "version": "1.0.0-rc.7",
   "description": "Reminix command line",
   "type": "module",
   "bin": {
@@ -17,7 +17,7 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@reminix/sdk": "1.0.0-rc.5",
+    "@reminix/sdk": "1.0.0-rc.6",
     "@types/node": "26.6.5",
     "commander": "15.0.0",
     "smol-toml": "1.9.1",

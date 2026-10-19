@@ -1483,7 +1483,7 @@ export const OPERATIONS: readonly Operation[] = [
         "idempotentHint": false
       }
     },
-    "description": "Uploads a new DRAFT version: the script's folder (a .tar.gz, base64 — the CLI makes it), the command that runs it and the JSON Schema of its inputs. Leave the command out and it is worked out from the folder: pyproject.toml's one script, package.json's bin, start or main, or the folder's one .py, .js, .ts or .sh file; leave the schema out and each `{name}` in the command is a text input. Its dependencies (requirements.txt, pyproject.toml, package.json) are installed now, once; a failed install answers 400 with what it printed. Runs keep using the published version until this one is published.",
+    "description": "Uploads a new DRAFT version: the script's folder (a .tar.gz, base64 — the CLI makes it), the command that runs it and the JSON Schema of its inputs. Leave the command out and it is worked out from the folder: pyproject.toml's one script, package.json's bin, start or main, or the folder's one .py, .js, .ts or .sh file; leave the schema out and each `{name}` in the command is a text input. Its dependencies (requirements.txt, pyproject.toml, package.json) are installed now, once; a failed install answers 400 with what it printed. Leave the readme out and the folder's README.md is used. Runs keep using the published version until this one is published — or pass `publish: true` (and `create: true` for a new script) to publish in one call.",
     "fields": [
       {
         "name": "slug",
@@ -1693,6 +1693,54 @@ export const OPERATIONS: readonly Operation[] = [
             "app"
           ],
           "description": "How it was uploaded (for the history). Default: api."
+        }
+      },
+      {
+        "name": "create",
+        "in": "body",
+        "type": "boolean",
+        "required": false,
+        "description": "Create the script when there is none with this slug — named `name`, else from the folder (pyproject.toml, package.json), else its slug. Default: false (an unknown slug is a 404, so a typo never makes a new script).",
+        "schema": {
+          "type": "boolean",
+          "description": "Create the script when there is none with this slug — named `name`, else from the folder (pyproject.toml, package.json), else its slug. Default: false (an unknown slug is a 404, so a typo never makes a new script)."
+        }
+      },
+      {
+        "name": "name",
+        "in": "body",
+        "type": "string",
+        "required": false,
+        "description": "When given, becomes the script's name (on creation, and on every later upload that sends it).",
+        "example": "Unlock account",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "When given, becomes the script's name (on creation, and on every later upload that sends it)."
+        }
+      },
+      {
+        "name": "description",
+        "in": "body",
+        "type": "string",
+        "required": false,
+        "description": "When given, becomes the script's description, as `name`.",
+        "schema": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "When given, becomes the script's description, as `name`."
+        }
+      },
+      {
+        "name": "publish",
+        "in": "body",
+        "type": "boolean",
+        "required": false,
+        "description": "Publish this version too, in the same call — exactly as \"Publish a version\": when the workspace needs a person's approval, the answer carries `approval` and it is published once approved.",
+        "schema": {
+          "type": "boolean",
+          "description": "Publish this version too, in the same call — exactly as \"Publish a version\": when the workspace needs a person's approval, the answer carries `approval` and it is published once approved."
         }
       }
     ],

@@ -6,7 +6,7 @@ import { brand } from "../brand/index.ts";
 import { describe, expect, it } from "vitest";
 
 import { run, type Io } from "../cli.ts";
-import { outputPath, typeOf } from "./files.ts";
+import { outputPath } from "./files.ts";
 
 const PAT = `pat_${brand.identifier}_abcdefghijklmnop`;
 
@@ -68,16 +68,6 @@ describe("scripts run with files", () => {
         uploads++;
         return Response.json({ id: `file_up${uploads}` }, { status: 201 });
       }
-      if (path === "/v1/scripts/convert") {
-        return Response.json({
-          inputSchema: {
-            properties: {
-              statement: { type: "string", format: "file" },
-              extras: { type: "array" },
-            },
-          },
-        });
-      }
       if (path === "/v1/scripts/convert/runs") {
         return Response.json({
           id: "run_1",
@@ -122,13 +112,19 @@ describe("scripts run with files", () => {
       method: "POST",
       path: "/v1/files?name=sept.csv",
       body: "a,b",
-      type: "text/csv",
+      // The API names the type from the file name.
+      type: "application/octet-stream",
     });
+    // No schema lookup first: one file goes as one id, and the API takes
+    // it for a list input too.
+    expect(t.requests.some((r) => r.path === "/v1/scripts/convert")).toBe(
+      false,
+    );
     const started = t.requests.find(
       (r) => r.path === "/v1/scripts/convert/runs",
     )!;
     expect(JSON.parse(started.body)).toEqual({
-      inputs: { account: "acme", statement: "file_up1", extras: ["file_up2"] },
+      inputs: { account: "acme", statement: "file_up1", extras: "file_up2" },
       via: "cli",
     });
     expect(readFileSync(join(out, "out", "sept.ofx"), "utf8")).toBe("OFX");
@@ -176,7 +172,8 @@ describe("files", () => {
       ),
     ).toBe(0);
     expect(t.out).toEqual(["file_9"]);
-    expect(t.requests[0].type).toBe("application/json");
+    // The API names the type from the file name.
+    expect(t.requests[0].type).toBe("application/octet-stream");
   });
 
   it("never saves an output outside the folder", () => {
@@ -184,7 +181,5 @@ describe("files", () => {
     expect(() => outputPath("/tmp/out", "../evil.sh")).toThrow(
       /not a path inside/,
     );
-    expect(typeOf("x.PDF")).toBe("application/pdf");
-    expect(typeOf("x.bin")).toBe("application/octet-stream");
   });
 });
