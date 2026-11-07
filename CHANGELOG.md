@@ -2,6 +2,32 @@
 
 What changed in the Reminix CLI (`@reminix/cli`). Generated from the source on each release; newest first.
 
+## 1.0.0-rc.9 (2026-11-07)
+
+### Added
+
+- Lists can start from a date. `GET /v1/workspace/audit-events` and
+  `GET /v1/workspace/webhook-endpoints/{endpointId}/deliveries` take
+  `before`, an ISO time, and return the items older than it, newest first.
+
+  Audit events take two filters. `action` keeps one kind of event.
+  `actor` keeps what one person, key or token did: pass `user:` and an
+  item's `actor.id`, or `credential:` and its `credential.id`. Each audit
+  event now carries those ids.
+
+  Webhook deliveries take `status`: `pending`, `delivered` or `failed`.
+- Listing runs takes `status`, which keeps only runs in one state, such as
+  `failed`. Listing runs and listing files both take `before`, which starts
+  the list from a moment instead of from now. For example,
+  `before=2026-11-01T00:00:00Z` lists what came before November.
+
+### Changed
+
+- The usage count `authors` is now described as "People who published or
+  uploaded this month". Its id and numbers haven't changed.
+- Listing files filters by file name with `name`, which replaces `q`. Every
+  filter is now named after the field it narrows.
+
 ## 1.0.0-rc.8 (2026-11-07)
 
 ### Added

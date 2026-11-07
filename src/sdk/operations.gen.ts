@@ -364,7 +364,7 @@ export const OPERATIONS: readonly Operation[] = [
         "idempotentHint": true
       }
     },
-    "description": "Lists the files that runs saved, newest first, across the scripts you can see. A file stays in the list until it expires. Pass `?script=<slug>` for one script's files. Pass `?origin=input` for the files runs took as inputs, or `?origin=all` for both. Pass `?q=` to match file names. Each file comes with a download link that works for an hour. Paginate with the opaque `nextCursor` token.",
+    "description": "Lists the files that runs saved, newest first, across the scripts you can see. A file stays in the list until it expires. Pass `?script=<slug>` for one script's files. Pass `?origin=input` for the files runs took as inputs, or `?origin=all` for both. Pass `?name=` to match file names. Each file comes with a download link that works for an hour. Pass `?before=` to start from a moment. Paginate with the opaque `nextCursor` token.",
     "fields": [
       {
         "name": "limit",
@@ -393,6 +393,19 @@ export const OPERATIONS: readonly Operation[] = [
         }
       },
       {
+        "name": "before",
+        "in": "query",
+        "type": "string",
+        "required": false,
+        "description": "Start from this moment: items older than it, newest first. Ignored with `cursor`, which already says where to go on.",
+        "example": "2026-11-01T00:00:00.000Z",
+        "schema": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Start from this moment: items older than it, newest first. Ignored with `cursor`, which already says where to go on."
+        }
+      },
+      {
         "name": "script",
         "in": "query",
         "type": "string",
@@ -401,6 +414,7 @@ export const OPERATIONS: readonly Operation[] = [
         "example": "monthly-report",
         "schema": {
           "type": "string",
+          "maxLength": 100,
           "description": "Only files from this script's runs, by its slug."
         }
       },
@@ -421,7 +435,7 @@ export const OPERATIONS: readonly Operation[] = [
         }
       },
       {
-        "name": "q",
+        "name": "name",
         "in": "query",
         "type": "string",
         "required": false,
@@ -651,7 +665,7 @@ export const OPERATIONS: readonly Operation[] = [
         "idempotentHint": true
       }
     },
-    "description": "Lists the workspace's runs, newest first. Pass `?script=<slug>` for one script's runs. Paginate with the opaque `nextCursor` token.",
+    "description": "Lists the workspace's runs, newest first. Pass `?script=<slug>` for one script's runs and `?status=` for runs in one state. Pass `?before=` to start from a moment. Paginate with the opaque `nextCursor` token.",
     "fields": [
       {
         "name": "limit",
@@ -680,6 +694,19 @@ export const OPERATIONS: readonly Operation[] = [
         }
       },
       {
+        "name": "before",
+        "in": "query",
+        "type": "string",
+        "required": false,
+        "description": "Start from this moment: items older than it, newest first. Ignored with `cursor`, which already says where to go on.",
+        "example": "2026-11-01T00:00:00.000Z",
+        "schema": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Start from this moment: items older than it, newest first. Ignored with `cursor`, which already says where to go on."
+        }
+      },
+      {
         "name": "script",
         "in": "query",
         "type": "string",
@@ -688,7 +715,27 @@ export const OPERATIONS: readonly Operation[] = [
         "example": "unlock-account",
         "schema": {
           "type": "string",
+          "maxLength": 100,
           "description": "Only this script's runs, by its slug."
+        }
+      },
+      {
+        "name": "status",
+        "in": "query",
+        "type": "string",
+        "required": false,
+        "description": "Only runs in this state.",
+        "example": "failed",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "awaiting_approval",
+            "running",
+            "succeeded",
+            "failed",
+            "cancelled"
+          ],
+          "description": "Only runs in this state."
         }
       }
     ],
@@ -2747,7 +2794,7 @@ export const OPERATIONS: readonly Operation[] = [
         "idempotentHint": true
       }
     },
-    "description": "Lists the workspace's audit events, newest first. Paginate with the opaque `nextCursor` token. `limit` takes 1 to 100 and defaults to 25. With a personal access token, only workspace owners can call this, as with the audit page in the app. A workspace API key always can, because it acts as the workspace itself.",
+    "description": "Lists the workspace's audit events, newest first. Paginate with the opaque `nextCursor` token. `limit` takes 1 to 100 and defaults to 25. `before` starts from a moment. `action` keeps one kind of event, and `actor` what one person, key or token did. With a personal access token, only workspace owners can call this, as with the audit page in the app. A workspace API key always can, because it acts as the workspace itself.",
     "fields": [
       {
         "name": "limit",
@@ -2773,6 +2820,45 @@ export const OPERATIONS: readonly Operation[] = [
         "schema": {
           "type": "string",
           "description": "Opaque token from a previous page's nextCursor."
+        }
+      },
+      {
+        "name": "before",
+        "in": "query",
+        "type": "string",
+        "required": false,
+        "description": "Start from this moment: items older than it, newest first. Ignored with `cursor`, which already says where to go on.",
+        "example": "2026-11-01T00:00:00.000Z",
+        "schema": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Start from this moment: items older than it, newest first. Ignored with `cursor`, which already says where to go on."
+        }
+      },
+      {
+        "name": "action",
+        "in": "query",
+        "type": "string",
+        "required": false,
+        "description": "Only events of this action.",
+        "example": "workspace.member_invited",
+        "schema": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Only events of this action."
+        }
+      },
+      {
+        "name": "actor",
+        "in": "query",
+        "type": "string",
+        "required": false,
+        "description": "Only what one person did (`user:` and the item's `actor.id`), or one key or token (`credential:` and the item's `credential.id`).",
+        "example": "user:usr_k3TAiF2ZP5sQ",
+        "schema": {
+          "type": "string",
+          "pattern": "^(user|credential):[\\w-]+$",
+          "description": "Only what one person did (`user:` and the item's `actor.id`), or one key or token (`credential:` and the item's `credential.id`)."
         }
       }
     ],
@@ -3039,7 +3125,7 @@ export const OPERATIONS: readonly Operation[] = [
         "idempotentHint": true
       }
     },
-    "description": "Lists one endpoint's delivery history, newest first. Each entry shows the event's status, attempts and last HTTP status. Payloads aren't included. We keep the history for 30 days. Paginate with the opaque `nextCursor`. With a personal access token, only workspace owners can call this. A workspace API key with this scope can.",
+    "description": "Lists one endpoint's delivery history, newest first. Each entry shows the event's status, attempts and last HTTP status. Payloads aren't included. We keep the history for 30 days. Paginate with the opaque `nextCursor`. `before` starts from a moment, and `status` keeps one kind of delivery. With a personal access token, only workspace owners can call this. A workspace API key with this scope can.",
     "fields": [
       {
         "name": "endpointId",
@@ -3077,6 +3163,36 @@ export const OPERATIONS: readonly Operation[] = [
         "schema": {
           "type": "string",
           "description": "Opaque token from a previous page's nextCursor."
+        }
+      },
+      {
+        "name": "before",
+        "in": "query",
+        "type": "string",
+        "required": false,
+        "description": "Start from this moment: items older than it, newest first. Ignored with `cursor`, which already says where to go on.",
+        "example": "2026-11-01T00:00:00.000Z",
+        "schema": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Start from this moment: items older than it, newest first. Ignored with `cursor`, which already says where to go on."
+        }
+      },
+      {
+        "name": "status",
+        "in": "query",
+        "type": "string",
+        "required": false,
+        "description": "Only deliveries with this status.",
+        "example": "failed",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "delivered",
+            "failed"
+          ],
+          "description": "Only deliveries with this status."
         }
       }
     ],
