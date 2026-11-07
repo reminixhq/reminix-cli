@@ -1,0 +1,214 @@
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { brand } from "../brand/index.ts";
+import { describe, expect, it } from "vitest";
+
+import { run, type Io } from "../cli.ts";
+import { localPath } from "./files.ts";
+
+const PAT = `pat_${brand.identifier}_abcdefghijklmnop`;
+
+/** A terminal against a fake API: records requests, answers by route. */
+function terminal(answer: (request: Request, path: string) => Response) {
+  const requests: {
+    method: string;
+    path: string;
+    body: string;
+    type: string | null;
+  }[] = [];
+  const out: string[] = [];
+  const err: string[] = [];
+  const io: Io = {
+    env: { [`${brand.identifier.toUpperCase()}_TOKEN`]: PAT },
+    homeDir: mkdtempSync(join(tmpdir(), "cap-home-")),
+    fetch: async (input, init) => {
+      const request =
+        input instanceof Request ? input : new Request(input, init);
+      const url = new URL(request.url);
+      const path = url.pathname + url.search;
+      requests.push({
+        method: request.method,
+        path,
+        body: request.method === "GET" ? "" : await request.clone().text(),
+        type: request.headers.get("content-type"),
+      });
+      return answer(request, path);
+    },
+    stdout: (line) => out.push(line),
+    stderr: (line) => err.push(line),
+    stdin: async () => "",
+  };
+  return { io, requests, out, err };
+}
+
+const file = (id: string, name: string, origin: "input" | "saved") => ({
+  id,
+  name,
+  mediaType: "text/csv",
+  size: 3,
+  origin,
+  runId: "run_1",
+  input: origin === "input" ? "statement" : null,
+  sha256: null,
+  createdAt: "2026-10-08T00:00:00Z",
+  expiresAt: "2026-10-15T00:00:00Z",
+  downloadUrl: origin === "saved" ? `https://files.example/${id}` : null,
+});
+
+describe("scripts run with files", () => {
+  it("uploads each --file first, runs with the ids, and saves --out", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "files-"));
+    writeFileSync(join(dir, "sept.csv"), "a,b");
+    const out = join(dir, "results");
+    let uploads = 0;
+    const t = terminal((_request, path) => {
+      if (path.startsWith("/v1/files?")) {
+        uploads++;
+        return Response.json({ id: `file_up${uploads}` }, { status: 201 });
+      }
+      if (path === "/v1/scripts/convert/runs") {
+        return Response.json({
+          id: "run_1",
+          status: "succeeded",
+          output: { rows: 1 },
+          error: null,
+          files: [
+            file("file_up1", "sept.csv", "input"),
+            file("file_out", "out/sept.ofx", "saved"),
+          ],
+        });
+      }
+      if (path === "/v1/files/file_out/download") {
+        return new Response("OFX", {
+          headers: { "content-type": "application/x-ofx" },
+        });
+      }
+      return new Response("not found", { status: 404 });
+    });
+    const code = await run(
+      [
+        "scripts",
+        "run",
+        "convert",
+        "--input",
+        '{"account":"acme"}',
+        "--file",
+        `statement=${join(dir, "sept.csv")}`,
+        "--file",
+        `extras=${join(dir, "sept.csv")}`,
+        "--out",
+        out,
+        "--workspace",
+        "acme",
+      ],
+      t.io,
+    );
+    expect(t.err.filter((l) => !l.startsWith("Downloaded"))).toEqual([]);
+    expect(code).toBe(0);
+    const upload = t.requests.find((r) => r.path.startsWith("/v1/files?"))!;
+    expect(upload).toMatchObject({
+      method: "POST",
+      path: "/v1/files?name=sept.csv",
+      body: "a,b",
+      // The API names the type from the file name.
+      type: "application/octet-stream",
+    });
+    // No schema lookup first: one file goes as one id, and the API takes
+    // it for a list input too.
+    expect(t.requests.some((r) => r.path === "/v1/scripts/convert")).toBe(
+      false,
+    );
+    const started = t.requests.find(
+      (r) => r.path === "/v1/scripts/convert/runs",
+    )!;
+    expect(JSON.parse(started.body)).toEqual({
+      inputs: { account: "acme", statement: "file_up1", extras: "file_up2" },
+      via: "cli",
+    });
+    expect(readFileSync(join(out, "out", "sept.ofx"), "utf8")).toBe("OFX");
+    expect(t.err).toContain(`Downloaded ${join(out, "out", "sept.ofx")}`);
+    expect(t.out).toEqual([JSON.stringify({ rows: 1 }, null, 2)]);
+  });
+
+  it("prints where to get what it saved, without --out", async () => {
+    const t = terminal(() =>
+      Response.json({
+        id: "run_2",
+        status: "succeeded",
+        output: null,
+        error: null,
+        files: [file("file_o", "report.csv", "saved")],
+      }),
+    );
+    expect(
+      await run(["scripts", "run", "report", "--workspace", "acme"], t.io),
+    ).toBe(0);
+    expect(t.err).toEqual(["Saved report.csv: https://files.example/file_o"]);
+  });
+
+  it("explains a --file that isn't input=path", async () => {
+    const t = terminal(() => Response.json({}));
+    expect(
+      await run(
+        ["scripts", "run", "x", "--file", "sept.csv", "--workspace", "a"],
+        t.io,
+      ),
+    ).not.toBe(0);
+    expect(t.err.join("\n")).toMatch(/input=path/);
+  });
+});
+
+describe("files", () => {
+  it("upload prints the new file's id", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "files-"));
+    writeFileSync(join(dir, "data.json"), "{}");
+    const t = terminal(() => Response.json({ id: "file_9" }, { status: 201 }));
+    expect(
+      await run(
+        ["files", "upload", join(dir, "data.json"), "--workspace", "a"],
+        t.io,
+      ),
+    ).toBe(0);
+    expect(t.out).toEqual(["file_9"]);
+    // The API names the type from the file name.
+    expect(t.requests[0].type).toBe("application/octet-stream");
+  });
+
+  it("download --json prints the file and where it saved it", async () => {
+    const out = join(mkdtempSync(join(tmpdir(), "files-")), "got.csv");
+    const t = terminal((_request, path) =>
+      path === "/v1/files/file_7/download"
+        ? new Response("a,b\n")
+        : Response.json(file("file_7", "sept.csv", "input")),
+    );
+    expect(
+      await run(
+        [
+          "files",
+          "download",
+          "file_7",
+          "--out",
+          out,
+          "--json",
+          "--workspace",
+          "a",
+        ],
+        t.io,
+      ),
+    ).toBe(0);
+    expect(JSON.parse(t.out.join("\n"))).toMatchObject({
+      id: "file_7",
+      path: out,
+    });
+    expect(readFileSync(out, "utf8")).toBe("a,b\n");
+  });
+
+  it("never saves an output outside the folder", () => {
+    expect(localPath("/tmp/out", "a/b.csv")).toBe("/tmp/out/a/b.csv");
+    expect(() => localPath("/tmp/out", "../evil.sh")).toThrow(
+      /not a path inside/,
+    );
+  });
+});

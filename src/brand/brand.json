@@ -1,0 +1,72 @@
+{
+  "$schema": "./brand.schema.json",
+  "status": "ready",
+  "name": "reminix",
+  "productName": "Reminix",
+  "legalName": "Omsome L.L.C-FZ",
+  "releaseMirrors": true,
+  "mirrorProfile": {
+    "topics": ["scripts", "automation", "ai-agents", "mcp", "api-client", "sdk"]
+  },
+  "domain": "reminix.com",
+  "devDomain": "reminix.dev",
+  "labs": ["lab"],
+  "discordInvite": "https://discord.gg/UU9NbEcNQj",
+  "summary": "Reminix lets your whole team, your software and your agents run your team's scripts, and the ones AI writes: one publish gives a form, an API and an agent tool, with keys kept out of the code and every run on record.",
+  "expectedAssets": [
+    "logo.svg",
+    "logo-dark.svg",
+    "mark.svg",
+    "favicon.svg",
+    "favicon-internal.svg",
+    "og-default.png",
+    "apple-touch-icon.png"
+  ],
+  "colors": {
+    "brand": "#151515",
+    "brandForeground": "#F7F6F2",
+    "brandDark": "#FFC72C",
+    "brandDarkForeground": "#151515",
+    "black": "#151515",
+    "signal": "#FFC72C",
+    "paper": "#F7F6F2",
+    "graphite": "#1A1A19",
+    "lemon": "#FFF2C2",
+    "done": "#2F9E44",
+    "waiting": "#C2410C",
+    "failed": "#C92A2A",
+    "night": "#0D0D0D",
+    "signalDark": "#FFC72C",
+    "paperDark": "#0D0D0D",
+    "graphiteDark": "#1F1F1D",
+    "lemonDark": "#1E1B10",
+    "doneDark": "#51CF66",
+    "waitingDark": "#FF8A4C",
+    "failedDark": "#FF6B6B",
+    "lemonBorder": "#F0DC8E",
+    "lemonBorderDark": "#3A3315",
+    "waitingBackground": "#FFF1E8",
+    "waitingBackgroundDark": "#2A1A12"
+  },
+  "fonts": {
+    "display": "Schibsted Grotesk Variable",
+    "body": "Instrument Sans Variable",
+    "code": "IBM Plex Mono"
+  },
+  "layout": {
+    "radius": "12px",
+    "gutter": "1.5rem",
+    "contentWidth": "72rem",
+    "readableWidth": "42rem",
+    "sectionGap": "2rem",
+    "navGap": "1.5rem",
+    "barPadding": "1rem",
+    "navCurrentWeight": "400",
+    "radiusControl": "8px"
+  },
+  "signIn": {
+    "providerOrder": ["github", "google"],
+    "emailSignUp": "button"
+  },
+  "devPortOffset": 200
+}

@@ -1,0 +1,37 @@
+{
+  "name": "@reminix/cli",
+  "version": "1.0.0-rc.8",
+  "description": "Reminix command line",
+  "type": "module",
+  "bin": {
+    "reminix": "./dist/reminix.mjs"
+  },
+  "files": [
+    "dist",
+    "NOTICE",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@reminix/sdk": "1.0.0-rc.7",
+    "@types/node": "26.6.6",
+    "commander": "15.0.0",
+    "smol-toml": "1.9.1",
+    "esbuild": "0.28.2",
+    "typescript": "6.0.3",
+    "vitest": "4.1.12"
+  },
+  "license": "Apache-2.0",
+  "homepage": "https://reminix.com/docs/cli/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/reminixhq/reminix-cli.git"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
