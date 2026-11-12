@@ -2,6 +2,32 @@
 
 What changed in the Reminix CLI (`@reminix/cli`). Generated from the source on each release; newest first.
 
+## 1.0.0-rc.11 (2026-11-13)
+
+### Changed
+
+- Publishing (`reminix publish`, `POST /v1/scripts/{slug}/versions`) now
+  refuses a command that puts an input inside code given to an interpreter
+  on the command line, such as `sh -c 'echo {name}'` or
+  `python -c 'print({name})'`, because the interpreter would run the value
+  as code. The error shows the safe form, with the input as its own
+  argument: `sh -c 'echo "$1"' _ {name}`. Versions published before keep
+  running.
+- Triggers have a type. `POST /v1/scripts/{slug}/triggers` takes
+  `type: "event"` or `type: "webhook"`. An event trigger's `eventType` is
+  now `event`, and a trigger's `filter` is null for a webhook trigger. A
+  webhook trigger starts a run when its URL is called with its secret; it
+  can take inputs from the call (`inputMode`), lock saved inputs
+  (`lockedInputs`) and check a Stripe or GitHub signature (`signature`,
+  `signingSecret`). Creating one returns its `url` and `secret`, once.
+  `POST /v1/scripts/{slug}/triggers/{triggerId}/rotate-secret` gives a new
+  one, and `GET /v1/scripts/{slug}/triggers/{triggerId}/calls` lists its
+  recent calls. A run's `via` can now be `webhook`, and a run has
+  `automationName`, the name of the schedule or trigger that started it. An AI agent can't
+  create a webhook trigger or rotate its secret. It asks with the approval
+  actions `trigger.webhook.create` and `trigger.webhook.rotateSecret`, and
+  a workspace owner approves.
+
 ## 1.0.0-rc.10 (2026-11-12)
 
 ### Added

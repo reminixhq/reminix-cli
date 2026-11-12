@@ -206,6 +206,8 @@ async function call(
       `missing ${missing.map((f) => `--${flag(f.name)}`).join(", ")}`,
     );
   }
+  const problem = variantProblem(op, input, whole);
+  if (problem) throw new Error(problem);
   const request = operationRequest(op, input, whole);
 
   const headers: Record<string, string> = {
@@ -281,4 +283,28 @@ function print(ctx: CliContext, data: unknown, asJson: boolean) {
     return;
   }
   ctx.io.stdout(String(data));
+}
+
+/**
+ * An either/or body (`op.variants`): what's wrong with the flags given
+ * for the chosen value, or undefined when they're enough.
+ */
+export function variantProblem(
+  op: Pick<Operation, "variants">,
+  input: Record<string, unknown>,
+  whole: Record<string, unknown>,
+): string | undefined {
+  if (!op.variants) return undefined;
+  const key = op.variants.field;
+  const chosen = String(input[key] ?? whole[key]);
+  const needs = op.variants.required[chosen];
+  if (!needs) {
+    return `--${flag(key)} must be one of ${Object.keys(op.variants.required).join(", ")}`;
+  }
+  const absent = needs.filter(
+    (name) => input[name] === undefined && whole[name] === undefined,
+  );
+  return absent.length > 0
+    ? `missing ${absent.map((name) => `--${flag(name)}`).join(", ")} (needed with --${flag(key)} ${chosen})`
+    : undefined;
 }

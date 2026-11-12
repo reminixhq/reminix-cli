@@ -1647,7 +1647,7 @@ export const OPERATIONS: readonly Operation[] = [
         "idempotentHint": false
       }
     },
-    "description": "Makes a version the one every run of the script uses, however the run starts. Publishing an older version again rolls the script back. The script owner or a workspace owner or admin can publish. An agent's publish becomes a request that a person approves, and the call returns 202. If the workspace requires a second person to publish, everyone's publish becomes a request like this.",
+    "description": "Makes a version the one every run of the script uses, however the run starts. Publishing an older version again rolls the script back. The script owner or a workspace owner or admin can publish. When an agent connected through MCP publishes, it becomes a request that a person approves, and the call returns 202. If the workspace requires a second person to publish, everyone's publish becomes a request like this.",
     "fields": [
       {
         "name": "slug",
@@ -2252,22 +2252,28 @@ export const OPERATIONS: readonly Operation[] = [
     "scope": "secrets:write"
   },
   {
-    "operationId": "triggers.create",
-    "method": "post",
-    "path": "/scripts/{slug}/triggers",
-    "summary": "Run a script on an event",
+    "operationId": "triggers.calls",
+    "method": "get",
+    "path": "/scripts/{slug}/triggers/{triggerId}/calls",
+    "summary": "List a webhook trigger's calls",
     "cli": {
-      "command": "triggers create",
+      "command": "triggers calls",
       "args": [
-        "slug"
+        "slug",
+        "triggerId"
       ],
       "confirm": false
     },
     "mcp": {
-      "exposed": false,
-      "reason": "Schedules and triggers run as the person who created them. Only a person can create or change them."
+      "exposed": true,
+      "name": "triggers_calls",
+      "hints": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true
+      }
     },
-    "description": "Starts a run of the script, as you, when an event of `eventType` happens in the workspace and its data matches `filter`. GET /v1/workspace/event-types lists the event types. The run starts within about a minute of the event. A chain of triggered runs stops after 3. If every run of the script, or every run in the environment, needs approval, only workspace owners and admins can create a trigger.",
+    "description": "Returns a webhook trigger's last 20 calls, newest first: when each came, whether it started a run or repeated an earlier call, why Reminix refused it, and the run. Reminix keeps calls for 30 days.",
     "fields": [
       {
         "name": "slug",
@@ -2279,6 +2285,70 @@ export const OPERATIONS: readonly Operation[] = [
         "schema": {
           "type": "string",
           "description": "The slug's ID."
+        }
+      },
+      {
+        "name": "triggerId",
+        "in": "path",
+        "type": "string",
+        "required": true,
+        "description": "The trigger's ID.",
+        "example": "trg_6e4a…",
+        "schema": {
+          "type": "string",
+          "description": "The trigger's ID."
+        }
+      }
+    ],
+    "hasBody": false,
+    "workspace": true,
+    "acceptsApiKey": true,
+    "scope": "scripts:read"
+  },
+  {
+    "operationId": "triggers.create",
+    "method": "post",
+    "path": "/scripts/{slug}/triggers",
+    "summary": "Run a script when something happens",
+    "cli": {
+      "command": "triggers create",
+      "args": [
+        "slug"
+      ],
+      "confirm": false
+    },
+    "mcp": {
+      "exposed": false,
+      "reason": "Schedules and triggers run as the person who created them. Only a person can create one. An agent can ask for a webhook trigger: POST /v1/workspace/approval-requests with action trigger.webhook.create, which a workspace owner approves."
+    },
+    "description": "Creates a trigger that starts a run of the script, as you. With the type `event`, a run starts when an event of `event` happens in the workspace and its data matches `filter`. GET /v1/workspace/event-types lists the event types. The run starts within about a minute of the event, and a chain of triggered runs stops after 3. With the type `webhook`, a run starts when someone calls the trigger's URL with its secret. The response carries the URL and the secret once. Only the script's owner, or a workspace owner or admin, can create a webhook trigger, and its runs wait for approval where an agent's would. For an event trigger, if every run of the script or of the environment needs approval, only workspace owners and admins can create it.",
+    "fields": [
+      {
+        "name": "slug",
+        "in": "path",
+        "type": "string",
+        "required": true,
+        "description": "The slug's ID.",
+        "example": "alert-on-failure",
+        "schema": {
+          "type": "string",
+          "description": "The slug's ID."
+        }
+      },
+      {
+        "name": "type",
+        "in": "body",
+        "type": "string",
+        "required": true,
+        "description": "A workspace event starts the runs. (enum property replaced by openapi-typescript)",
+        "example": "event",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "event",
+            "webhook"
+          ],
+          "description": "A workspace event starts the runs. (enum property replaced by openapi-typescript)"
         }
       },
       {
@@ -2296,10 +2366,10 @@ export const OPERATIONS: readonly Operation[] = [
         }
       },
       {
-        "name": "eventType",
+        "name": "event",
         "in": "body",
         "type": "string",
-        "required": true,
+        "required": false,
         "description": "The event that starts a run. It can be any webhook event type, such as `run.failed`.",
         "example": "run.failed",
         "schema": {
@@ -2349,12 +2419,88 @@ export const OPERATIONS: readonly Operation[] = [
           "type": "string",
           "description": "The environment the runs use. The default is the request's X-Environment, or else the workspace's default environment."
         }
+      },
+      {
+        "name": "inputMode",
+        "in": "body",
+        "type": "string",
+        "required": false,
+        "description": "Where each run's inputs come from. `fixed`, the default, uses the saved `inputs` and ignores the body. `call` takes the body's fields that match the script's inputs. `request` gives the script the whole request as its `request` input.",
+        "example": "request",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "fixed",
+            "call",
+            "request"
+          ],
+          "description": "Where each run's inputs come from. `fixed`, the default, uses the saved `inputs` and ignores the body. `call` takes the body's fields that match the script's inputs. `request` gives the script the whole request as its `request` input."
+        }
+      },
+      {
+        "name": "lockedInputs",
+        "in": "body",
+        "type": "json",
+        "required": false,
+        "description": "Saved inputs that a call can't change.",
+        "example": [
+          "account"
+        ],
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Saved inputs that a call can't change."
+        }
+      },
+      {
+        "name": "signature",
+        "in": "body",
+        "type": "string",
+        "required": false,
+        "description": "Check each call's signature: `stripe` (Stripe-Signature) or `github` (X-Hub-Signature-256). The default is `none`.",
+        "example": "stripe",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "none",
+            "stripe",
+            "github"
+          ],
+          "description": "Check each call's signature: `stripe` (Stripe-Signature) or `github` (X-Hub-Signature-256). The default is `none`."
+        }
+      },
+      {
+        "name": "signingSecret",
+        "in": "body",
+        "type": "string",
+        "required": false,
+        "description": "The provider's signing secret, with `signature` `stripe` or `github`. Reminix stores it encrypted and never returns it.",
+        "example": "whsec_…",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The provider's signing secret, with `signature` `stripe` or `github`. Reminix stores it encrypted and never returns it."
+        }
       }
     ],
     "hasBody": true,
     "workspace": true,
     "acceptsApiKey": false,
-    "scope": "scripts:write"
+    "scope": "scripts:write",
+    "variants": {
+      "field": "type",
+      "required": {
+        "event": [
+          "name",
+          "event"
+        ],
+        "webhook": [
+          "name"
+        ]
+      }
+    }
   },
   {
     "operationId": "triggers.delete",
@@ -2373,7 +2519,7 @@ export const OPERATIONS: readonly Operation[] = [
       "exposed": false,
       "reason": "Schedules and triggers run as the person who created them. Only a person can create or change them."
     },
-    "description": "Deletes a trigger. The trigger's creator, a workspace owner or admin, or a workspace API key can delete it.",
+    "description": "Deletes a trigger. The creator of an event trigger, a webhook trigger's script owner, a workspace owner or admin, or a workspace API key can delete it.",
     "fields": [
       {
         "name": "slug",
@@ -2447,6 +2593,55 @@ export const OPERATIONS: readonly Operation[] = [
     "scope": "scripts:read"
   },
   {
+    "operationId": "triggers.rotateSecret",
+    "method": "post",
+    "path": "/scripts/{slug}/triggers/{triggerId}/rotate-secret",
+    "summary": "Rotate a webhook trigger's secret",
+    "cli": {
+      "command": "triggers rotate-secret",
+      "args": [
+        "slug",
+        "triggerId"
+      ],
+      "confirm": true
+    },
+    "mcp": {
+      "exposed": false,
+      "reason": "Only a person can rotate a webhook trigger's secret. An agent can ask: POST /v1/workspace/approval-requests with action trigger.webhook.rotateSecret, which a workspace owner approves."
+    },
+    "description": "Gives a webhook trigger a new secret and returns its new URL, this once. The old URL stops working at once. If Reminix disabled the trigger, such as after repeated refused calls, rotating enables it again. The script's owner, a workspace owner or admin, or a workspace API key can rotate it.",
+    "fields": [
+      {
+        "name": "slug",
+        "in": "path",
+        "type": "string",
+        "required": true,
+        "description": "The slug's ID.",
+        "example": "alert-on-failure",
+        "schema": {
+          "type": "string",
+          "description": "The slug's ID."
+        }
+      },
+      {
+        "name": "triggerId",
+        "in": "path",
+        "type": "string",
+        "required": true,
+        "description": "The trigger's ID.",
+        "example": "trg_6e4a…",
+        "schema": {
+          "type": "string",
+          "description": "The trigger's ID."
+        }
+      }
+    ],
+    "hasBody": false,
+    "workspace": true,
+    "acceptsApiKey": true,
+    "scope": "scripts:write"
+  },
+  {
     "operationId": "triggers.update",
     "method": "patch",
     "path": "/scripts/{slug}/triggers/{triggerId}",
@@ -2463,7 +2658,7 @@ export const OPERATIONS: readonly Operation[] = [
       "exposed": false,
       "reason": "Schedules and triggers run as the person who created them. Only a person can create or change them."
     },
-    "description": "Changes a trigger's name, filter, inputs or environment, or whether it's enabled. The trigger's creator, a workspace owner or admin, or a workspace API key can change it.",
+    "description": "Changes a trigger's name, inputs or environment, or whether it's enabled. It also changes an event trigger's filter, or a webhook trigger's input mode, locked inputs and signature check. Changing the signature check needs its signing secret again. The creator of an event trigger, a webhook trigger's script owner, a workspace owner or admin, or a workspace API key can change it.",
     "fields": [
       {
         "name": "slug",
@@ -2553,6 +2748,64 @@ export const OPERATIONS: readonly Operation[] = [
         "schema": {
           "type": "string",
           "description": "Another environment for the trigger's runs to use."
+        }
+      },
+      {
+        "name": "inputMode",
+        "in": "body",
+        "type": "string",
+        "required": false,
+        "description": "A webhook trigger's input mode.",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "fixed",
+            "call",
+            "request"
+          ],
+          "description": "A webhook trigger's input mode."
+        }
+      },
+      {
+        "name": "lockedInputs",
+        "in": "body",
+        "type": "json",
+        "required": false,
+        "description": "A webhook trigger's saved inputs that a call can't change.",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "A webhook trigger's saved inputs that a call can't change."
+        }
+      },
+      {
+        "name": "signature",
+        "in": "body",
+        "type": "string",
+        "required": false,
+        "description": "A webhook trigger's signature check.",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "none",
+            "stripe",
+            "github"
+          ],
+          "description": "A webhook trigger's signature check."
+        }
+      },
+      {
+        "name": "signingSecret",
+        "in": "body",
+        "type": "string",
+        "required": false,
+        "description": "A new signing secret, with `signature` `stripe` or `github`.",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "description": "A new signing secret, with `signature` `stripe` or `github`."
         }
       }
     ],

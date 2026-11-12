@@ -6,6 +6,7 @@ import { brand } from "./brand/index.ts";
 import { describe, expect, it } from "vitest";
 
 import { run, type Io } from "./cli.ts";
+import { variantProblem } from "./generated.ts";
 
 const PAT = `pat_${brand.identifier}_abcdefghijklmnop`;
 
@@ -248,5 +249,36 @@ describe("generated command groups", () => {
     const help = [...out, ...err].join("\n");
     expect(help).toMatch(/webhook-endpoints\s+.*create, .*list/);
     expect(help).not.toMatch(/webhook-endpoints commands/);
+  });
+});
+
+describe("an either/or body", () => {
+  const op = {
+    variants: {
+      field: "type",
+      required: { event: ["name", "event"], webhook: ["name", "inputMode"] },
+    },
+  };
+  it("names the flags the chosen value needs", () => {
+    expect(variantProblem(op, { type: "webhook", name: "n" }, {})).toBe(
+      "missing --input-mode (needed with --type webhook)",
+    );
+    expect(
+      variantProblem(op, { type: "event", name: "n", event: "run.failed" }, {}),
+    ).toBeUndefined();
+  });
+  it("lists the values when the choice is unknown", () => {
+    expect(variantProblem(op, { type: "cron" }, {})).toBe(
+      "--type must be one of event, webhook",
+    );
+  });
+  it("accepts the fields from --data too", () => {
+    expect(
+      variantProblem(
+        op,
+        {},
+        { type: "webhook", name: "n", inputMode: "fixed" },
+      ),
+    ).toBeUndefined();
   });
 });

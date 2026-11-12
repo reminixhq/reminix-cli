@@ -49,9 +49,20 @@ export type Operation = OperationSurface & {
   scope?: string;
   /** Marked `deprecated` in the OpenAPI document: still works, retiring. */
   deprecated?: boolean;
+  /**
+   * An either/or body (`oneOf`/`anyOf` of objects told apart by one
+   * field): that field, and for each of its values the fields that value
+   * requires. The flat field list holds every variant's fields, the
+   * discriminator required and the rest optional; the API checks each
+   * variant, and the CLI says which flags a value needs.
+   */
+  variants?: { field: string; required: Record<string, string[]> };
 };
 
 type Schema = {
+  oneOf?: Schema[];
+  anyOf?: Schema[];
+  const?: unknown;
   $ref?: string;
   example?: unknown;
   type?: string | string[];
@@ -199,19 +210,24 @@ export function buildOperations(document: Document): Operation[] {
       document,
       op.requestBody?.content?.["application/json"]?.schema,
     );
-    const required = new Set(body.required ?? []);
-    for (const [name, property] of Object.entries(body.properties ?? {})) {
-      const schema = resolve(document, property);
-      const example = exampleOf(document, property);
-      fields.push({
-        name,
-        in: "body",
-        type: fieldType(schema),
-        required: required.has(name),
-        ...(schema.description ? { description: schema.description } : {}),
-        ...(example !== undefined ? { example } : {}),
-        schema: inline(document, property),
-      });
+    const union = bodyVariants(document, body);
+    if (union) {
+      for (const field of union.fields) fields.push(field);
+    } else {
+      const required = new Set(body.required ?? []);
+      for (const [name, property] of Object.entries(body.properties ?? {})) {
+        const schema = resolve(document, property);
+        const example = exampleOf(document, property);
+        fields.push({
+          name,
+          in: "body",
+          type: fieldType(schema),
+          required: required.has(name),
+          ...(schema.description ? { description: schema.description } : {}),
+          ...(example !== undefined ? { example } : {}),
+          schema: inline(document, property),
+        });
+      }
     }
     // A CLI argument must be one of the operation's fields (an `x-cli`
     // naming a field that was renamed would silently never be sent).
@@ -257,8 +273,91 @@ export function buildOperations(document: Document): Operation[] {
         (op.security ?? document.security)?.some((s) => "apiKey" in s) ?? true,
       ...(op["x-scope"] ? { scope: op["x-scope"] } : {}),
       ...(op.deprecated ? { deprecated: true } : {}),
+      ...(union ? { variants: union.variants } : {}),
     };
   });
+}
+
+/** The one value a schema allows (`const`, or an `enum` of one). */
+function single(schema: Schema): unknown {
+  if (schema.const !== undefined) return schema.const;
+  if (Array.isArray(schema.enum) && schema.enum.length === 1)
+    return schema.enum[0];
+  return undefined;
+}
+
+/**
+ * An either/or body as one flat field list (2026-11-12: Reminix's
+ * triggers are `{ type: "event", … } | { type: "webhook", … }`; the
+ * first such body left the CLI with no flags and Python with no keyword
+ * arguments). Every variant's fields, merged by name; the field every
+ * variant fixes to one value is the discriminator, required, a choice of
+ * those values; a field is required only if every variant requires it.
+ */
+function bodyVariants(
+  document: Document,
+  body: Schema,
+):
+  | {
+      fields: OperationField[];
+      variants: { field: string; required: Record<string, string[]> };
+    }
+  | undefined {
+  const list = body.oneOf ?? body.anyOf;
+  if (!Array.isArray(list) || list.length < 2) return undefined;
+  const variants = list.map((v) => resolve(document, v));
+  if (variants.some((v) => !v.properties)) return undefined;
+  const discriminator = Object.keys(variants[0]!.properties!).find((name) =>
+    variants.every((v) => {
+      const p = v.properties?.[name];
+      return p !== undefined && single(resolve(document, p)) !== undefined;
+    }),
+  );
+  if (!discriminator) return undefined;
+  const values = variants.map((v) =>
+    single(resolve(document, v.properties![discriminator]!)),
+  );
+  const fields: OperationField[] = [];
+  const seen = new Map<string, OperationField>();
+  for (const variant of variants) {
+    for (const [name, property] of Object.entries(variant.properties!)) {
+      if (seen.has(name)) continue;
+      const schema = resolve(document, property);
+      const example = exampleOf(document, property);
+      const isKey = name === discriminator;
+      const field: OperationField = {
+        name,
+        in: "body",
+        type: isKey ? "string" : fieldType(schema),
+        required:
+          isKey || variants.every((v) => (v.required ?? []).includes(name)),
+        ...(schema.description ? { description: schema.description } : {}),
+        ...(isKey
+          ? { example: values[0] }
+          : example !== undefined
+            ? { example }
+            : {}),
+        schema: isKey
+          ? {
+              type: "string",
+              enum: values,
+              ...(schema.description
+                ? { description: schema.description }
+                : {}),
+            }
+          : inline(document, property),
+      };
+      seen.set(name, field);
+      fields.push(field);
+    }
+  }
+  const required = Object.fromEntries(
+    variants.map((v, i) => [
+      String(values[i]),
+      (v.required ?? []).filter((name) => name !== discriminator),
+    ]),
+  );
+  return { fields, variants: { field: discriminator, required } };
 }
 
 export type OperationRequest = {
