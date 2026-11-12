@@ -1,7 +1,16 @@
 {
   "name": "@reminix/cli",
-  "version": "1.0.0-rc.9",
+  "version": "1.0.0-rc.10",
   "description": "Reminix command line",
+  "keywords": [
+    "scripts",
+    "internal-tools",
+    "automation",
+    "ai-agents",
+    "mcp",
+    "cli",
+    "command-line-tool"
+  ],
   "type": "module",
   "bin": {
     "reminix": "./dist/reminix.mjs"
@@ -19,7 +28,7 @@
   "devDependencies": {
     "@reminix/sdk": "1.0.0-rc.8",
     "@types/node": "26.6.6",
-    "commander": "15.0.0",
+    "commander": "15.1.0",
     "smol-toml": "1.9.1",
     "esbuild": "0.28.2",
     "typescript": "6.0.3",

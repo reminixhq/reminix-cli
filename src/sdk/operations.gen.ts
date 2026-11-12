@@ -3125,7 +3125,7 @@ export const OPERATIONS: readonly Operation[] = [
         "idempotentHint": true
       }
     },
-    "description": "Lists one endpoint's delivery history, newest first. Each entry shows the event's status, attempts and last HTTP status. Payloads aren't included. We keep the history for 30 days. Paginate with the opaque `nextCursor`. `before` starts from a moment, and `status` keeps one kind of delivery. With a personal access token, only workspace owners can call this. A workspace API key with this scope can.",
+    "description": "Lists one endpoint's delivery history, newest first. Each entry shows the event's status, attempts and last HTTP status. Payloads aren't included. We keep the history for 30 days. Paginate with the opaque `nextCursor`. `before` starts from a moment, and `status` keeps one kind of delivery. With a personal access token, only the workspace owner can call this. A workspace API key with this scope can.",
     "fields": [
       {
         "name": "endpointId",
@@ -3223,7 +3223,7 @@ export const OPERATIONS: readonly Operation[] = [
         "idempotentHint": false
       }
     },
-    "description": "Sends a recorded delivery's event again, as a new delivery. The new delivery gets its own history entry. The event id stays the same, so receivers can deduplicate. Redelivery only works on an enabled endpoint. With a personal access token, only workspace owners can call this. A workspace API key with this scope can.",
+    "description": "Sends a recorded delivery's event again, as a new delivery. The new delivery gets its own history entry. The event id stays the same, so receivers can deduplicate. Redelivery only works on an enabled endpoint. With a personal access token, only the workspace owner can call this. A workspace API key with this scope can.",
     "fields": [
       {
         "name": "endpointId",
@@ -3269,7 +3269,7 @@ export const OPERATIONS: readonly Operation[] = [
       "exposed": false,
       "reason": "Changes where workspace data is sent. A person configures webhook endpoints (Settings → Developers in the app)."
     },
-    "description": "Registers an HTTPS URL to receive the workspace's events. Deliveries use the same signature format as Svix. The response includes the endpoint's signing secret (`whsec_…`). You see it only once, so store it to verify deliveries. The API refuses private hosts and hosts without HTTPS. A workspace can have at most 10 endpoints. With a personal access token, only workspace owners can call this. A workspace API key with this scope can.",
+    "description": "Registers an HTTPS URL to receive the workspace's events. Deliveries use the same signature format as Svix. The response includes the endpoint's signing secret (`whsec_…`). You see it only once, so store it to verify deliveries. The API refuses private hosts and hosts without HTTPS. A workspace can have at most 10 endpoints. With a personal access token, only the workspace owner can call this. A workspace API key with this scope can.",
     "fields": [
       {
         "name": "url",
@@ -3337,7 +3337,7 @@ export const OPERATIONS: readonly Operation[] = [
       "exposed": false,
       "reason": "Changes where workspace data is sent. A person configures webhook endpoints (Settings → Developers in the app)."
     },
-    "description": "Deletes the endpoint and its signing secret. All deliveries to the endpoint stop. Its delivery history goes with it. With a personal access token, only workspace owners can call this. A workspace API key with this scope can.",
+    "description": "Deletes the endpoint and its signing secret. All deliveries to the endpoint stop. Its delivery history goes with it. With a personal access token, only the workspace owner can call this. A workspace API key with this scope can.",
     "fields": [
       {
         "name": "endpointId",
@@ -3373,7 +3373,7 @@ export const OPERATIONS: readonly Operation[] = [
       "exposed": false,
       "reason": "Changes where workspace data is sent. A person configures webhook endpoints (Settings → Developers in the app)."
     },
-    "description": "Resumes deliveries to an endpoint that stopped after repeated failures. The endpoint keeps its signing secret. Its failure count resets. With a personal access token, only workspace owners can call this. A workspace API key with this scope can.",
+    "description": "Resumes deliveries to an endpoint that stopped after repeated failures. The endpoint keeps its signing secret. Its failure count resets. With a personal access token, only the workspace owner can call this. A workspace API key with this scope can.",
     "fields": [
       {
         "name": "endpointId",
@@ -3414,7 +3414,7 @@ export const OPERATIONS: readonly Operation[] = [
         "idempotentHint": true
       }
     },
-    "description": "Returns one endpoint without its signing secret. It shows whether the endpoint is on, its consecutive failures and its last delivery status. With a personal access token, only workspace owners can call this. A workspace API key with this scope can.",
+    "description": "Returns one endpoint without its signing secret. It shows whether the endpoint is on, its consecutive failures and its last delivery status. With a personal access token, only the workspace owner can call this. A workspace API key with this scope can.",
     "fields": [
       {
         "name": "endpointId",
@@ -3453,7 +3453,7 @@ export const OPERATIONS: readonly Operation[] = [
         "idempotentHint": true
       }
     },
-    "description": "Lists the workspace's outgoing webhook endpoints, newest first. The list leaves out their signing secrets. A workspace has at most 10 endpoints, so the list is a single page. Its `nextCursor` is null. With a personal access token, only workspace owners can call this. A workspace API key with this scope can.",
+    "description": "Lists the workspace's outgoing webhook endpoints, newest first. The list leaves out their signing secrets. A workspace has at most 10 endpoints, so the list is a single page. Its `nextCursor` is null. With a personal access token, only the workspace owner can call this. A workspace API key with this scope can.",
     "fields": [],
     "hasBody": false,
     "workspace": true,
@@ -3481,7 +3481,7 @@ export const OPERATIONS: readonly Operation[] = [
         "idempotentHint": false
       }
     },
-    "description": "Sends a `ping` event to the endpoint, signed like every delivery. Use it to check that an integration verifies and accepts deliveries. With a personal access token, only workspace owners can call this. A workspace API key with this scope can.",
+    "description": "Sends a `ping` event to the endpoint, signed like every delivery. Use it to check that an integration verifies and accepts deliveries. With a personal access token, only the workspace owner can call this. A workspace API key with this scope can.",
     "fields": [
       {
         "name": "endpointId",
@@ -3517,7 +3517,7 @@ export const OPERATIONS: readonly Operation[] = [
       "exposed": false,
       "reason": "Changes where workspace data is sent. A person configures webhook endpoints (Settings → Developers in the app)."
     },
-    "description": "Changes an endpoint's URL, description or event types in place. Only the fields you send change. The endpoint keeps its signing secret, so receivers keep verifying deliveries. A new URL must pass the same checks as on create. It must use HTTPS and can't be a private host. With a personal access token, only workspace owners can call this. A workspace API key with this scope can.",
+    "description": "Changes an endpoint's URL, description or event types in place. Only the fields you send change. The endpoint keeps its signing secret, so receivers keep verifying deliveries. A new URL must pass the same checks as on create. It must use HTTPS and can't be a private host. With a personal access token, only the workspace owner can call this. A workspace API key with this scope can.",
     "fields": [
       {
         "name": "endpointId",

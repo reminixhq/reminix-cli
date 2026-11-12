@@ -65,6 +65,8 @@ const optional = manifest as typeof manifest & {
   summary?: string;
   legalName?: string;
   discordInvite?: string;
+  /** The product's own accounts elsewhere: an X handle and a GitHub organisation (no @, no URL). */
+  profiles?: { x?: string; github?: string };
   securityContact?: string;
   supportContact?: string;
   opsContact?: string | false;
@@ -112,6 +114,33 @@ export const brand = {
    * when the product has no Discord.
    */
   discord: optional.discordInvite ? `https://${manifest.domain}/discord` : null,
+  /**
+   * The product's accounts, for the site footer's icons, the docs
+   * header's and the app's help menu (owner, 2026-11-09): GitHub (the
+   * organisation, which lists the public SDKs), Discord (the /discord
+   * redirect) and X, each only when brand.json has it.
+   */
+  socialLinks: [
+    optional.profiles?.github && {
+      network: "github",
+      label: "GitHub",
+      href: `https://github.com/${optional.profiles.github}`,
+    },
+    optional.discordInvite && {
+      network: "discord",
+      label: "Discord",
+      href: `https://${manifest.domain}/discord`,
+    },
+    optional.profiles?.x && {
+      network: "x",
+      label: "X",
+      href: `https://x.com/${optional.profiles.x}`,
+    },
+  ].filter(Boolean) as {
+    network: "github" | "discord" | "x";
+    label: string;
+    href: string;
+  }[],
   /** One sentence: what the product is — llms.txt and the agent skill lead with it. */
   summary: optional.summary ?? `${manifest.productName} documentation and API.`,
   /** Where vulnerability reports go — /.well-known/security.txt and /security publish it. Defaults to security@<domain>. */

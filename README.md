@@ -2,7 +2,7 @@
 
 The Reminix CLI turns a script in a folder into a Reminix script, publishes it for your team and runs it, from a terminal, CI or another script.
 
-Reminix lets your whole team, your software and your agents run your team's scripts, and the ones AI writes: one publish gives a form, an API and an agent tool, with keys kept out of the code and every run on record.
+Reminix turns your scripts into internal tools. Upload a Python, shell or Node script, and Reminix runs it from a form, the API, the CLI or your AI agents, on a schedule or from a webhook. Keys stay out of the code, and every run is on record.
 
 ## Install
 

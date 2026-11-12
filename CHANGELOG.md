@@ -2,6 +2,35 @@
 
 What changed in the Reminix CLI (`@reminix/cli`). Generated from the source on each release; newest first.
 
+## 1.0.0-rc.10 (2026-11-12)
+
+### Added
+
+- Members and pending invitations now carry `seat`: the seat type a person
+  holds or will hold (`GET /v1/workspace/members`,
+  `GET /v1/workspace/invitations`). It is null for a guest, or where the
+  product has no seat types.
+
+### Changed
+
+- An approval request for a run now has a plain `summary`, such as "Run
+  refund-customer (version 2) in production", without the run's inputs.
+  The inputs are in the request's `input` (`GET /v1/approvals/{id}`). Its
+  `reason` is empty, because Reminix writes none of its own for a run;
+  the `summary` says what will happen.
+- In Reminix a `seat` is `"publishers"` or `"runners"`. An invitation can
+  choose either.
+
+  Only publishers create scripts, upload versions and publish them. A
+  runner gets `403 forbidden` for those, and so does anyone uploading a
+  version of a script they can't publish.
+
+  `GET /v1/workspace/usage` no longer has the `authors` count. Seats
+  replace it.
+
+  A workspace keeps up to 1 GB of files on Free, 10 GB on Pro and 100 GB
+  on Business. An upload past that gets `402 plan_limit_reached`.
+
 ## 1.0.0-rc.9 (2026-11-07)
 
 ### Added
