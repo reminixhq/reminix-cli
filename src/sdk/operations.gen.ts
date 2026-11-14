@@ -3350,7 +3350,7 @@ export const OPERATIONS: readonly Operation[] = [
         "idempotentHint": true
       }
     },
-    "description": "Returns what the workspace used this period, with one entry for each thing its plan counts. Each entry has the plan's limit, or null when there is no limit. A period is one month from the workspace's billing date. That date comes from its subscription or, without one, from the day you created the workspace. On an annual plan, the counts still reset every month from the subscription's start.",
+    "description": "Returns what the workspace used this period, with one entry for each thing its plan counts. Each entry has the plan's limit, or null when there is no limit. Each entry also says where it stands and where we start refusing new use. A period is one month from the workspace's billing date. That date comes from its subscription or, without one, from the day you created the workspace. On an annual plan, the counts still reset every month from the subscription's start.",
     "fields": [],
     "hasBody": false,
     "workspace": true,

@@ -13,6 +13,7 @@ import {
 import { rawRequest } from "./http.ts";
 import { json, table } from "./output.ts";
 import { approvals } from "./approvals.ts";
+import { usage } from "./usage.ts";
 
 async function me(ctx: CliContext): Promise<Schemas["UserMe"]> {
   return unwrap(await ctx.client({ workspace: false }).GET("/user/me"));
@@ -323,4 +324,5 @@ export const platformCommands: readonly Command[] = [
   api,
   config,
   approvals,
+  usage,
 ];
