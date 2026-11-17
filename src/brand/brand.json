@@ -9,6 +9,7 @@
   "domain": "reminix.com",
   "devDomain": "reminix.dev",
   "labs": ["lab"],
+  "statusPage": true,
   "discordInvite": "https://discord.gg/UU9NbEcNQj",
   "profiles": { "x": "reminixhq", "github": "reminixhq" },
   "summary": "Reminix turns your scripts into internal tools. Upload a Python, shell or Node script, and Reminix runs it from a form, the API, the CLI or your AI agents, on a schedule or from a webhook. Keys stay out of the code, and every run is on record.",

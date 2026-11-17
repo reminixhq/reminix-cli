@@ -2,6 +2,10 @@
 
 What changed in the Reminix CLI (`@reminix/cli`). Generated from the source on each release; newest first.
 
+## 1.0.0-rc.13 (2026-11-18)
+
+No user-facing changes.
+
 ## 1.0.0-rc.12 (2026-11-14)
 
 ### Added

@@ -69,10 +69,13 @@ const optional = manifest as typeof manifest & {
   profiles?: { x?: string; github?: string };
   securityContact?: string;
   supportContact?: string;
+  contactContact?: string;
   opsContact?: string | false;
   devDomain?: string;
   features?: ManifestFeatures;
   launched?: boolean;
+  launchedAt?: string;
+  statusPage?: boolean;
   signIn?: ManifestSignIn;
   environments?: ManifestEnvironment[];
   defaultEnvironment?: string;
@@ -145,8 +148,10 @@ export const brand = {
   summary: optional.summary ?? `${manifest.productName} documentation and API.`,
   /** Where vulnerability reports go — /.well-known/security.txt and /security publish it. Defaults to security@<domain>. */
   securityContact: optional.securityContact ?? `security@${manifest.domain}`,
-  /** The support address the /contact page shows. Defaults to support@<domain>. */
+  /** Where the Contact form's help topics go (Question, Bug, Billing). Never shown on a page. Defaults to support@<domain>. */
   supportContact: optional.supportContact ?? `support@${manifest.domain}`,
+  /** Where the Contact form's other topics go (Sales and enterprise, Something else; owner, 2026-11-15). Never shown on a page. Defaults to contact@<domain>. */
+  contactContact: optional.contactContact ?? `contact@${manifest.domain}`,
   /**
    * Where operational alerts go (dead letters, failed crons, unhandled
    * API errors, failed uptime probes — the worker's `sendOpsAlert`).
@@ -165,9 +170,25 @@ export const brand = {
    * (docs/deployment.md "Resetting product data"). False when absent.
    */
   launched: optional.launched === true,
+  /** The launch date (brand.json `launchedAt`, YYYY-MM-DD): the public changelog starts here. */
+  launchedAt: optional.launchedAt ?? null,
+  /** The public status page's address, once brand.json `statusPage` says it is live; else null. */
+  statusPageUrl:
+    optional.statusPage === true ? `https://status.${manifest.domain}` : null,
   /** True once the product has its own brand (brand.json `status: "ready"`), not the platform's placeholders. */
   ready: (manifest as { status?: string }).status === "ready",
 } as const;
+
+/**
+ * Whether search engines may index a build of the site and docs: only a
+ * product's prod (owner, 2026-11-14). The platform's own site, every
+ * stage and every lab say `Disallow: /` and `noindex`, so their copies
+ * never compete with the real site in search. `environment` is the
+ * build's PUBLIC_ENVIRONMENT (deploy-environment.yml); unset locally.
+ */
+export function searchIndexable(environment: string | undefined): boolean {
+  return brand.ready && environment === "prod";
+}
 
 /**
  * Resolves the manifest's `features` into the flags the surfaces read:
