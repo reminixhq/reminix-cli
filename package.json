@@ -1,6 +1,6 @@
 {
   "name": "@reminix/cli",
-  "version": "1.0.0-rc.15",
+  "version": "1.0.0-rc.16",
   "description": "Reminix command line",
   "keywords": [
     "scripts",
@@ -26,7 +26,7 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@reminix/sdk": "1.0.0-rc.13",
+    "@reminix/sdk": "1.0.0-rc.14",
     "@types/node": "26.6.6",
     "commander": "15.1.0",
     "smol-toml": "1.9.1",

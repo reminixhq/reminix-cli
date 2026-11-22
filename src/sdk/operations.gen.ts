@@ -27,7 +27,7 @@ export const OPERATIONS: readonly Operation[] = [
       "exposed": false,
       "reason": "Environments hold secret values and rules. A person sets them up, and an agent asks a person to."
     },
-    "description": "Adds an environment with no secret values yet. To save its values, call secrets.set with X-Environment set to the new environment. Workspace owners, admins and API keys can add an environment.",
+    "description": "Adds an environment with no secret values yet. To save its values, call secretValues.set with the new environment in the path. Workspace owners, admins and API keys can add an environment.",
     "fields": [
       {
         "name": "name",
@@ -1526,7 +1526,7 @@ export const OPERATIONS: readonly Operation[] = [
         "idempotentHint": false
       }
     },
-    "description": "Changes a script's name, description or tags, who can see and run it, and which runs need a person's approval. The script owner, a workspace owner or admin, or a workspace API key can change a script. An agent can't change `access`, `teamIds` or `approvalPolicy`. A name, description or tags that the script's reminix.json sets (listed in `setInFile`) can't change here, and the request returns 400.",
+    "description": "Changes a script's name, description or tags, who can see and run it, and which runs need a person's approval. The script owner, a workspace owner or admin, or a workspace API key can change a script. An agent can't change `access`, `teamIds` or `approvalPolicy`. A name, description or tags that the script's reminix.json sets (listed in `setInFile`) can't change here, and the request returns 409.",
     "fields": [
       {
         "name": "slug",
@@ -2658,7 +2658,7 @@ export const OPERATIONS: readonly Operation[] = [
     },
     "mcp": {
       "exposed": false,
-      "reason": "Schedules and triggers run as the person who created them. Only a person can create one. An agent can ask for a webhook trigger: POST /v1/workspace/approval-requests with action trigger.webhook.create, which a workspace owner approves."
+      "reason": "Schedules and triggers run as the person who created them. Only a person can create one. An agent can ask for a webhook trigger: POST /v1/workspace/approval-requests with action trigger.webhook.create, which a workspace owner or admin approves."
     },
     "description": "Creates a trigger that starts a run of the script, as you. With the type `event`, a run starts when an event of `event` happens in the workspace and its data matches `filter`. GET /v1/workspace/event-types lists the event types. The run starts within about a minute of the event, and a chain of triggered runs stops after 3. With the type `webhook`, a run starts when someone calls the trigger's URL with its secret. The response carries the URL and the secret once. Only the script's owner, or a workspace owner or admin, can create a webhook trigger, and its runs wait for approval where an agent's would. For an event trigger, if every run of the script or of the environment needs approval, only workspace owners and admins can create it.",
     "fields": [
@@ -3027,7 +3027,7 @@ export const OPERATIONS: readonly Operation[] = [
     },
     "mcp": {
       "exposed": false,
-      "reason": "Only a person can rotate a webhook trigger's secret. An agent can ask: POST /v1/workspace/approval-requests with action trigger.webhook.rotateSecret, which a workspace owner approves."
+      "reason": "An agent can't rotate a webhook trigger's secret itself. It can ask: POST /v1/workspace/approval-requests with action trigger.webhook.rotateSecret, which a workspace owner or admin approves."
     },
     "description": "Gives a webhook trigger a new secret and returns its new URL, this once. The old URL stops working at once. If Reminix disabled the trigger, such as after repeated refused calls, rotating enables it again. The script's owner, a workspace owner or admin, or a workspace API key can rotate it.",
     "fields": [
