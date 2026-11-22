@@ -172,8 +172,36 @@ export const OPERATIONS: readonly Operation[] = [
       }
     },
     "description": "Lists the workspace's environments, oldest first, and shows which one is the default. To act in an environment, name it in the X-Environment header.",
-    "fields": [],
+    "fields": [
+      {
+        "name": "limit",
+        "in": "query",
+        "type": "number",
+        "required": false,
+        "description": "Items per page, 1–100 (default 25).",
+        "example": 25,
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 25,
+          "description": "Items per page, 1–100 (default 25)."
+        }
+      },
+      {
+        "name": "cursor",
+        "in": "query",
+        "type": "string",
+        "required": false,
+        "description": "Opaque token from a previous page's nextCursor.",
+        "schema": {
+          "type": "string",
+          "description": "Opaque token from a previous page's nextCursor."
+        }
+      }
+    ],
     "hasBody": false,
+    "paginated": true,
     "workspace": true,
     "acceptsApiKey": true,
     "scope": "environments:read"
@@ -268,10 +296,10 @@ export const OPERATIONS: readonly Operation[] = [
     "scope": "environments:write"
   },
   {
-    "operationId": "files.download",
+    "operationId": "files.content",
     "method": "get",
-    "path": "/files/{fileId}/download",
-    "summary": "Download a file",
+    "path": "/files/{fileId}/content",
+    "summary": "Get a file's content",
     "cli": {
       "command": "files download",
       "args": [
@@ -291,7 +319,7 @@ export const OPERATIONS: readonly Operation[] = [
         "type": "string",
         "required": true,
         "description": "The file's ID.",
-        "example": "file_4c1e…",
+        "example": "file_36d59242-1144-4fcb-851f-20f4c444d538",
         "schema": {
           "type": "string",
           "description": "The file's ID."
@@ -333,7 +361,7 @@ export const OPERATIONS: readonly Operation[] = [
         "type": "string",
         "required": true,
         "description": "The file's ID.",
-        "example": "file_4c1e…",
+        "example": "file_36d59242-1144-4fcb-851f-20f4c444d538",
         "schema": {
           "type": "string",
           "description": "The file's ID."
@@ -449,6 +477,7 @@ export const OPERATIONS: readonly Operation[] = [
       }
     ],
     "hasBody": false,
+    "paginated": true,
     "workspace": true,
     "acceptsApiKey": true,
     "scope": "runs:read"
@@ -468,7 +497,7 @@ export const OPERATIONS: readonly Operation[] = [
       "exposed": false,
       "reason": "Takes raw bytes, which an agent's tool call can't carry; agents pass an https link as the file input instead."
     },
-    "description": "Uploads a file that a run can take as a file input. Send the file's bytes as the request body, with `Content-Type` and `Content-Length` headers, and its name as `?name=`. Then pass the returned id as the file input's value (`{ \"adjustments\": \"file_4c1e…\" }`). You can give each upload to only one run. If no run uses an upload within a day, Reminix deletes it. Your plan sets the largest file you can upload. Reminix refuses a file over 1,000 MB on every plan.",
+    "description": "Uploads a file that a run can take as a file input. Send the file's bytes as the request body, with `Content-Type` and `Content-Length` headers, and its name as `?name=`. Then pass the returned id as the file input's value (`{ \"adjustments\": \"file_36d59242-1144-4fcb-851f-20f4c444d538\" }`). You can give each upload to only one run. If no run uses an upload within a day, Reminix deletes it. Your plan sets the largest file you can upload. Reminix refuses a file over 1,000 MB on every plan.",
     "fields": [
       {
         "name": "name",
@@ -520,7 +549,7 @@ export const OPERATIONS: readonly Operation[] = [
         "type": "string",
         "required": true,
         "description": "The run's ID.",
-        "example": "run_7b1a…",
+        "example": "run_620f14ad-32e8-4f5e-89fd-1c80de7e9124",
         "schema": {
           "type": "string",
           "description": "The run's ID."
@@ -554,7 +583,7 @@ export const OPERATIONS: readonly Operation[] = [
         "idempotentHint": false
       }
     },
-    "description": "Runs the script's published version with these inputs, and returns the run when it finishes, with its output or error. Reminix first checks the inputs against the version's input schema. If they don't match, the request returns 400 with one `details` entry per field. For a file input, pass a file id or an https link that Reminix fetches. The id can be a file you uploaded with files.upload, or a file another run saved. The script runs on its own fresh machine and can reach only the hosts its version declares. A run can last up to its version's `timeoutSeconds`, at most 30, counted from when its code starts. Getting a machine can take up to 2 minutes first. If the run is still in progress after 60 seconds, the request returns 202 with status `running`, and you follow the run with runs.get. If the version's `timeoutSeconds` is over 30, the run is a long run. A long run runs durably, and the request returns 202 at once. Every run counts toward the workspace's `runs` usage.",
+    "description": "Runs the script's published version with these inputs, and returns the run when it finishes (201), with its output or error. Reminix first checks the inputs against the version's input schema. If they don't match, the request returns 400 with one `details` entry per field. For a file input, pass a file id or an https link that Reminix fetches. The id can be a file you uploaded with files.upload, or a file another run saved. The script runs on its own fresh machine and can reach only the hosts its version declares. A run can last up to its version's `timeoutSeconds`, at most 30, counted from when its code starts. Getting a machine can take up to 2 minutes first. If the run is still in progress after 60 seconds, the request returns 202 with status `running`, and you follow the run with runs.get. If the version's `timeoutSeconds` is over 30, the run is a long run. A long run runs durably, and the request returns 202 at once. Every run counts toward the workspace's `runs` usage.",
     "fields": [
       {
         "name": "slug",
@@ -634,7 +663,7 @@ export const OPERATIONS: readonly Operation[] = [
         "type": "string",
         "required": true,
         "description": "The run's ID.",
-        "example": "run_7b1a…",
+        "example": "run_620f14ad-32e8-4f5e-89fd-1c80de7e9124",
         "schema": {
           "type": "string",
           "description": "The run's ID."
@@ -740,6 +769,7 @@ export const OPERATIONS: readonly Operation[] = [
       }
     ],
     "hasBody": false,
+    "paginated": true,
     "workspace": true,
     "acceptsApiKey": true,
     "scope": "runs:read"
@@ -773,7 +803,7 @@ export const OPERATIONS: readonly Operation[] = [
         "type": "string",
         "required": true,
         "description": "The run's ID.",
-        "example": "run_7b1a…",
+        "example": "run_620f14ad-32e8-4f5e-89fd-1c80de7e9124",
         "schema": {
           "type": "string",
           "description": "The run's ID."
@@ -921,7 +951,7 @@ export const OPERATIONS: readonly Operation[] = [
         "type": "string",
         "required": true,
         "description": "The schedule's ID.",
-        "example": "sch_2b9f…",
+        "example": "sch_037f4852-dc5e-40c8-82a9-852a44410c85",
         "schema": {
           "type": "string",
           "description": "The schedule's ID."
@@ -932,6 +962,60 @@ export const OPERATIONS: readonly Operation[] = [
     "workspace": true,
     "acceptsApiKey": true,
     "scope": "scripts:write"
+  },
+  {
+    "operationId": "schedules.get",
+    "method": "get",
+    "path": "/scripts/{slug}/schedules/{scheduleId}",
+    "summary": "Get a schedule",
+    "cli": {
+      "command": "schedules get",
+      "args": [
+        "slug",
+        "scheduleId"
+      ],
+      "confirm": false
+    },
+    "mcp": {
+      "exposed": true,
+      "name": "schedules_get",
+      "hints": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true
+      }
+    },
+    "description": "Returns one of a script's schedules, with when it runs next.",
+    "fields": [
+      {
+        "name": "slug",
+        "in": "path",
+        "type": "string",
+        "required": true,
+        "description": "The slug's ID.",
+        "example": "monthly-report",
+        "schema": {
+          "type": "string",
+          "description": "The slug's ID."
+        }
+      },
+      {
+        "name": "scheduleId",
+        "in": "path",
+        "type": "string",
+        "required": true,
+        "description": "The schedule's ID.",
+        "example": "sch_037f4852-dc5e-40c8-82a9-852a44410c85",
+        "schema": {
+          "type": "string",
+          "description": "The schedule's ID."
+        }
+      }
+    ],
+    "hasBody": false,
+    "workspace": true,
+    "acceptsApiKey": true,
+    "scope": "scripts:read"
   },
   {
     "operationId": "schedules.list",
@@ -967,9 +1051,36 @@ export const OPERATIONS: readonly Operation[] = [
           "type": "string",
           "description": "The slug's ID."
         }
+      },
+      {
+        "name": "limit",
+        "in": "query",
+        "type": "number",
+        "required": false,
+        "description": "Items per page, 1–100 (default 25).",
+        "example": 25,
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 25,
+          "description": "Items per page, 1–100 (default 25)."
+        }
+      },
+      {
+        "name": "cursor",
+        "in": "query",
+        "type": "string",
+        "required": false,
+        "description": "Opaque token from a previous page's nextCursor.",
+        "schema": {
+          "type": "string",
+          "description": "Opaque token from a previous page's nextCursor."
+        }
       }
     ],
     "hasBody": false,
+    "paginated": true,
     "workspace": true,
     "acceptsApiKey": true,
     "scope": "scripts:read"
@@ -1011,7 +1122,7 @@ export const OPERATIONS: readonly Operation[] = [
         "type": "string",
         "required": true,
         "description": "The schedule's ID.",
-        "example": "sch_2b9f…",
+        "example": "sch_037f4852-dc5e-40c8-82a9-852a44410c85",
         "schema": {
           "type": "string",
           "description": "The schedule's ID."
@@ -1353,6 +1464,7 @@ export const OPERATIONS: readonly Operation[] = [
       }
     ],
     "hasBody": false,
+    "paginated": true,
     "workspace": true,
     "acceptsApiKey": true,
     "scope": "scripts:read"
@@ -1414,7 +1526,7 @@ export const OPERATIONS: readonly Operation[] = [
         "idempotentHint": false
       }
     },
-    "description": "Changes a script's name, description or tags, who can see and run it, and which runs need a person's approval. The script owner, a workspace owner or admin, or a workspace API key can change a script. An agent can't change `access`, `teamIds` or `approvalPolicy`.",
+    "description": "Changes a script's name, description or tags, who can see and run it, and which runs need a person's approval. The script owner, a workspace owner or admin, or a workspace API key can change a script. An agent can't change `access`, `teamIds` or `approvalPolicy`. A name, description or tags that the script's reminix.json sets (listed in `setInFile`) can't change here, and the request returns 400.",
     "fields": [
       {
         "name": "slug",
@@ -1585,6 +1697,61 @@ export const OPERATIONS: readonly Operation[] = [
     "scope": "scripts:write"
   },
   {
+    "operationId": "scriptVersions.get",
+    "method": "get",
+    "path": "/scripts/{slug}/versions/{version}",
+    "summary": "Get a version",
+    "cli": {
+      "command": "script-versions get",
+      "args": [
+        "slug",
+        "version"
+      ],
+      "confirm": false
+    },
+    "mcp": {
+      "exposed": true,
+      "name": "script_versions_get",
+      "hints": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true
+      }
+    },
+    "description": "Returns one version of a script, and whether it's the published one.",
+    "fields": [
+      {
+        "name": "slug",
+        "in": "path",
+        "type": "string",
+        "required": true,
+        "description": "The slug's ID.",
+        "example": "unlock-account",
+        "schema": {
+          "type": "string",
+          "description": "The slug's ID."
+        }
+      },
+      {
+        "name": "version",
+        "in": "path",
+        "type": "number",
+        "required": true,
+        "description": "The version's ID.",
+        "example": 3,
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "The version's ID."
+        }
+      }
+    ],
+    "hasBody": false,
+    "workspace": true,
+    "acceptsApiKey": true,
+    "scope": "scripts:read"
+  },
+  {
     "operationId": "scriptVersions.list",
     "method": "get",
     "path": "/scripts/{slug}/versions",
@@ -1605,7 +1772,7 @@ export const OPERATIONS: readonly Operation[] = [
         "idempotentHint": true
       }
     },
-    "description": "Lists every version of a script, newest first, and marks the published one.",
+    "description": "Lists a script's versions, newest first, and marks the published one. Paginate with the opaque `nextCursor` token.",
     "fields": [
       {
         "name": "slug",
@@ -1618,9 +1785,36 @@ export const OPERATIONS: readonly Operation[] = [
           "type": "string",
           "description": "The slug's ID."
         }
+      },
+      {
+        "name": "limit",
+        "in": "query",
+        "type": "number",
+        "required": false,
+        "description": "Items per page, 1–100 (default 25).",
+        "example": 25,
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 25,
+          "description": "Items per page, 1–100 (default 25)."
+        }
+      },
+      {
+        "name": "cursor",
+        "in": "query",
+        "type": "string",
+        "required": false,
+        "description": "Opaque token from a previous page's nextCursor.",
+        "schema": {
+          "type": "string",
+          "description": "Opaque token from a previous page's nextCursor."
+        }
       }
     ],
     "hasBody": false,
+    "paginated": true,
     "workspace": true,
     "acceptsApiKey": true,
     "scope": "scripts:read"
@@ -1836,11 +2030,11 @@ export const OPERATIONS: readonly Operation[] = [
         "in": "body",
         "type": "json",
         "required": false,
-        "description": "The inputs, as JSON Schema. If you leave it out, each `{name}` in the command becomes a required text input, or an optional one inside `[ … ]`.",
+        "description": "The inputs, as JSON Schema. If you leave it out, each `{name}` in the command becomes a required text input, or an optional one inside `[ … ]`. A text input with `\"format\": \"multiline\"` gets a box of several lines in the run form.",
         "schema": {
           "type": "object",
           "additionalProperties": {},
-          "description": "The inputs, as JSON Schema. If you leave it out, each `{name}` in the command becomes a required text input, or an optional one inside `[ … ]`."
+          "description": "The inputs, as JSON Schema. If you leave it out, each `{name}` in the command becomes a required text input, or an optional one inside `[ … ]`. A text input with `\"format\": \"multiline\"` gets a box of several lines in the run form."
         }
       },
       {
@@ -2100,6 +2294,47 @@ export const OPERATIONS: readonly Operation[] = [
     "scope": "secrets:write"
   },
   {
+    "operationId": "secrets.get",
+    "method": "get",
+    "path": "/secrets/{name}",
+    "summary": "Get a secret",
+    "cli": {
+      "command": "secrets get",
+      "args": [
+        "name"
+      ],
+      "confirm": false
+    },
+    "mcp": {
+      "exposed": true,
+      "name": "secrets_get",
+      "hints": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true
+      }
+    },
+    "description": "Returns one secret by its name, with the environments that have a value and the hosts each value may go to. It never includes the values themselves.",
+    "fields": [
+      {
+        "name": "name",
+        "in": "path",
+        "type": "string",
+        "required": true,
+        "description": "The secret's name, in UPPER_SNAKE_CASE. It starts with a letter and has at most 64 characters.",
+        "example": "ADMIN_KEY",
+        "schema": {
+          "type": "string",
+          "description": "The secret's name, in UPPER_SNAKE_CASE. It starts with a letter and has at most 64 characters."
+        }
+      }
+    ],
+    "hasBody": false,
+    "workspace": true,
+    "acceptsApiKey": true,
+    "scope": "secrets:read"
+  },
+  {
     "operationId": "secrets.list",
     "method": "get",
     "path": "/secrets",
@@ -2119,30 +2354,57 @@ export const OPERATIONS: readonly Operation[] = [
       }
     },
     "description": "Lists the workspace's secrets by name, with the environments that have a value and the hosts each value may go to. The list never includes the values themselves.",
-    "fields": [],
+    "fields": [
+      {
+        "name": "limit",
+        "in": "query",
+        "type": "number",
+        "required": false,
+        "description": "Items per page, 1–100 (default 25).",
+        "example": 25,
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 25,
+          "description": "Items per page, 1–100 (default 25)."
+        }
+      },
+      {
+        "name": "cursor",
+        "in": "query",
+        "type": "string",
+        "required": false,
+        "description": "Opaque token from a previous page's nextCursor.",
+        "schema": {
+          "type": "string",
+          "description": "Opaque token from a previous page's nextCursor."
+        }
+      }
+    ],
     "hasBody": false,
+    "paginated": true,
     "workspace": true,
     "acceptsApiKey": true,
     "scope": "secrets:read"
   },
   {
-    "operationId": "secrets.set",
-    "method": "put",
+    "operationId": "secrets.update",
+    "method": "patch",
     "path": "/secrets/{name}",
-    "summary": "Save a secret",
+    "summary": "Update a secret",
     "cli": {
-      "command": "secrets set",
+      "command": "secrets update",
       "args": [
         "name"
       ],
-      "confirm": false,
-      "sample": "printf %s \"$ADMIN_KEY\" | \\\n  reminix secrets set ADMIN_KEY \\\n  --hosts api.yourapp.com"
+      "confirm": false
     },
     "mcp": {
       "exposed": false,
       "reason": "Secret values are a person's to handle; an agent asks the person to add the secret"
     },
-    "description": "Saves a secret's value in the request's environment. Saving creates the secret if it's new, or replaces the value and its hosts to rotate it. Reminix encrypts the value, and no call ever returns it. Reminix sends the value only to the hosts in `hosts`. Workspace owners, admins and API keys can save a secret.",
+    "description": "Changes what applies to a secret in every environment. Its values are saved one environment at a time, with Save a secret's value. Workspace owners, admins and API keys can change a secret.",
     "fields": [
       {
         "name": "name",
@@ -2157,43 +2419,14 @@ export const OPERATIONS: readonly Operation[] = [
         }
       },
       {
-        "name": "value",
-        "in": "body",
-        "type": "string",
-        "required": true,
-        "description": "The secret itself, at most 16,384 bytes.",
-        "example": "ak_live_…",
-        "schema": {
-          "type": "string",
-          "description": "The secret itself, at most 16,384 bytes."
-        }
-      },
-      {
-        "name": "hosts",
-        "in": "body",
-        "type": "json",
-        "required": true,
-        "description": "The only hosts Reminix sends this value to, such as `api.stripe.com`.",
-        "example": [
-          "api.yourapp.com"
-        ],
-        "schema": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "The only hosts Reminix sends this value to, such as `api.stripe.com`."
-        }
-      },
-      {
         "name": "allowEnvVar",
         "in": "body",
         "type": "boolean",
         "required": false,
-        "description": "Whether scripts can read the secret as an environment variable. The default is false, so Reminix only attaches it to requests.",
+        "description": "Whether scripts can read the secret as an environment variable. A new secret starts with false, so Reminix only attaches it to requests.",
         "schema": {
           "type": "boolean",
-          "description": "Whether scripts can read the secret as an environment variable. The default is false, so Reminix only attaches it to requests."
+          "description": "Whether scripts can read the secret as an environment variable. A new secret starts with false, so Reminix only attaches it to requests."
         }
       }
     ],
@@ -2238,11 +2471,11 @@ export const OPERATIONS: readonly Operation[] = [
         "in": "path",
         "type": "string",
         "required": true,
-        "description": "The environment's ID.",
-        "example": "staging",
+        "description": "The environment's name.",
+        "example": "production",
         "schema": {
           "type": "string",
-          "description": "The environment's ID."
+          "description": "The environment's name."
         }
       }
     ],
@@ -2252,12 +2485,91 @@ export const OPERATIONS: readonly Operation[] = [
     "scope": "secrets:write"
   },
   {
-    "operationId": "triggers.calls",
+    "operationId": "secretValues.set",
+    "method": "put",
+    "path": "/secrets/{name}/values/{environment}",
+    "summary": "Save a secret's value",
+    "cli": {
+      "command": "secrets set",
+      "args": [
+        "name",
+        "environment"
+      ],
+      "confirm": false,
+      "sample": "printf %s \"$ADMIN_KEY\" | \\\n  reminix secrets set ADMIN_KEY \\\n  --hosts api.yourapp.com"
+    },
+    "mcp": {
+      "exposed": false,
+      "reason": "Secret values are a person's to handle; an agent asks the person to add the secret"
+    },
+    "description": "Saves a secret's value in one environment. Saving creates the secret if it's new, or replaces the value and its hosts to rotate it. Reminix encrypts the value, and no call ever returns it. Reminix sends the value only to the hosts in `hosts`. Workspace owners, admins and API keys can save a secret.",
+    "fields": [
+      {
+        "name": "name",
+        "in": "path",
+        "type": "string",
+        "required": true,
+        "description": "The secret's name, in UPPER_SNAKE_CASE. It starts with a letter and has at most 64 characters.",
+        "example": "ADMIN_KEY",
+        "schema": {
+          "type": "string",
+          "description": "The secret's name, in UPPER_SNAKE_CASE. It starts with a letter and has at most 64 characters."
+        }
+      },
+      {
+        "name": "environment",
+        "in": "path",
+        "type": "string",
+        "required": true,
+        "description": "The environment's name.",
+        "example": "production",
+        "schema": {
+          "type": "string",
+          "description": "The environment's name."
+        }
+      },
+      {
+        "name": "value",
+        "in": "body",
+        "type": "string",
+        "required": true,
+        "description": "The secret itself, at most 16,384 bytes.",
+        "example": "ak_live_…",
+        "schema": {
+          "type": "string",
+          "description": "The secret itself, at most 16,384 bytes."
+        }
+      },
+      {
+        "name": "hosts",
+        "in": "body",
+        "type": "json",
+        "required": true,
+        "description": "The only hosts Reminix sends this value to, such as `api.stripe.com`.",
+        "example": [
+          "api.yourapp.com"
+        ],
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The only hosts Reminix sends this value to, such as `api.stripe.com`."
+        }
+      }
+    ],
+    "hasBody": true,
+    "workspace": true,
+    "acceptsApiKey": true,
+    "scope": "secrets:write"
+  },
+  {
+    "operationId": "triggerCalls.list",
     "method": "get",
     "path": "/scripts/{slug}/triggers/{triggerId}/calls",
     "summary": "List a webhook trigger's calls",
     "cli": {
-      "command": "triggers calls",
+      "command": "trigger-calls list",
       "args": [
         "slug",
         "triggerId"
@@ -2266,14 +2578,14 @@ export const OPERATIONS: readonly Operation[] = [
     },
     "mcp": {
       "exposed": true,
-      "name": "triggers_calls",
+      "name": "trigger_calls_list",
       "hints": {
         "readOnlyHint": true,
         "destructiveHint": false,
         "idempotentHint": true
       }
     },
-    "description": "Returns a webhook trigger's last 20 calls, newest first: when each came, whether it started a run or repeated an earlier call, why Reminix refused it, and the run. Reminix keeps calls for 30 days.",
+    "description": "Lists a webhook trigger's calls, newest first: when each came, whether it started a run or repeated an earlier call, why Reminix refused it, and the run. Reminix keeps calls for 30 days.",
     "fields": [
       {
         "name": "slug",
@@ -2293,14 +2605,41 @@ export const OPERATIONS: readonly Operation[] = [
         "type": "string",
         "required": true,
         "description": "The trigger's ID.",
-        "example": "trg_6e4a…",
+        "example": "trg_6a2e4a00-bdcf-4035-85b7-544eab30f470",
         "schema": {
           "type": "string",
           "description": "The trigger's ID."
         }
+      },
+      {
+        "name": "limit",
+        "in": "query",
+        "type": "number",
+        "required": false,
+        "description": "Items per page, 1–100 (default 25).",
+        "example": 25,
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 25,
+          "description": "Items per page, 1–100 (default 25)."
+        }
+      },
+      {
+        "name": "cursor",
+        "in": "query",
+        "type": "string",
+        "required": false,
+        "description": "Opaque token from a previous page's nextCursor.",
+        "schema": {
+          "type": "string",
+          "description": "Opaque token from a previous page's nextCursor."
+        }
       }
     ],
     "hasBody": false,
+    "paginated": true,
     "workspace": true,
     "acceptsApiKey": true,
     "scope": "scripts:read"
@@ -2539,7 +2878,7 @@ export const OPERATIONS: readonly Operation[] = [
         "type": "string",
         "required": true,
         "description": "The trigger's ID.",
-        "example": "trg_6e4a…",
+        "example": "trg_6a2e4a00-bdcf-4035-85b7-544eab30f470",
         "schema": {
           "type": "string",
           "description": "The trigger's ID."
@@ -2550,6 +2889,60 @@ export const OPERATIONS: readonly Operation[] = [
     "workspace": true,
     "acceptsApiKey": true,
     "scope": "scripts:write"
+  },
+  {
+    "operationId": "triggers.get",
+    "method": "get",
+    "path": "/scripts/{slug}/triggers/{triggerId}",
+    "summary": "Get a trigger",
+    "cli": {
+      "command": "triggers get",
+      "args": [
+        "slug",
+        "triggerId"
+      ],
+      "confirm": false
+    },
+    "mcp": {
+      "exposed": true,
+      "name": "triggers_get",
+      "hints": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true
+      }
+    },
+    "description": "Returns one of a script's triggers. A webhook trigger's secret is never returned again after it is made or rotated.",
+    "fields": [
+      {
+        "name": "slug",
+        "in": "path",
+        "type": "string",
+        "required": true,
+        "description": "The slug's ID.",
+        "example": "alert-on-failure",
+        "schema": {
+          "type": "string",
+          "description": "The slug's ID."
+        }
+      },
+      {
+        "name": "triggerId",
+        "in": "path",
+        "type": "string",
+        "required": true,
+        "description": "The trigger's ID.",
+        "example": "trg_6a2e4a00-bdcf-4035-85b7-544eab30f470",
+        "schema": {
+          "type": "string",
+          "description": "The trigger's ID."
+        }
+      }
+    ],
+    "hasBody": false,
+    "workspace": true,
+    "acceptsApiKey": true,
+    "scope": "scripts:read"
   },
   {
     "operationId": "triggers.list",
@@ -2585,9 +2978,36 @@ export const OPERATIONS: readonly Operation[] = [
           "type": "string",
           "description": "The slug's ID."
         }
+      },
+      {
+        "name": "limit",
+        "in": "query",
+        "type": "number",
+        "required": false,
+        "description": "Items per page, 1–100 (default 25).",
+        "example": 25,
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 25,
+          "description": "Items per page, 1–100 (default 25)."
+        }
+      },
+      {
+        "name": "cursor",
+        "in": "query",
+        "type": "string",
+        "required": false,
+        "description": "Opaque token from a previous page's nextCursor.",
+        "schema": {
+          "type": "string",
+          "description": "Opaque token from a previous page's nextCursor."
+        }
       }
     ],
     "hasBody": false,
+    "paginated": true,
     "workspace": true,
     "acceptsApiKey": true,
     "scope": "scripts:read"
@@ -2629,7 +3049,7 @@ export const OPERATIONS: readonly Operation[] = [
         "type": "string",
         "required": true,
         "description": "The trigger's ID.",
-        "example": "trg_6e4a…",
+        "example": "trg_6a2e4a00-bdcf-4035-85b7-544eab30f470",
         "schema": {
           "type": "string",
           "description": "The trigger's ID."
@@ -2678,7 +3098,7 @@ export const OPERATIONS: readonly Operation[] = [
         "type": "string",
         "required": true,
         "description": "The trigger's ID.",
-        "example": "trg_6e4a…",
+        "example": "trg_6a2e4a00-bdcf-4035-85b7-544eab30f470",
         "schema": {
           "type": "string",
           "description": "The trigger's ID."
@@ -2873,9 +3293,10 @@ export const OPERATIONS: readonly Operation[] = [
         "idempotentHint": true
       }
     },
-    "description": "Lists the actions a credential can't take itself but can ask a person to approve. Each action comes with its input as a JSON Schema, who can approve it and whether it creates a secret.",
+    "description": "Lists the actions a credential can't take itself but can ask a person to approve. Each action comes with its input as a JSON Schema (`inputSchema`), who can approve it and whether it creates a secret. Every action fits on one page, so `nextCursor` is null.",
     "fields": [],
     "hasBody": false,
+    "paginated": true,
     "workspace": true,
     "acceptsApiKey": true,
     "scope": "workspace.approvals:read"
@@ -2954,12 +3375,12 @@ export const OPERATIONS: readonly Operation[] = [
   {
     "operationId": "workspace.approvalRequests.get",
     "method": "get",
-    "path": "/workspace/approval-requests/{requestId}",
+    "path": "/workspace/approval-requests/{approvalRequestId}",
     "summary": "Check an approval request",
     "cli": {
       "command": "workspace approval-requests get",
       "args": [
-        "requestId"
+        "approvalRequestId"
       ],
       "confirm": false
     },
@@ -2975,15 +3396,15 @@ export const OPERATIONS: readonly Operation[] = [
     "description": "Returns an approval request you created, with its status. A `pending` request is waiting for a person to decide. A `completed` request's action ran, and `result` holds the outcome. An `approved` request is waiting for the CLI to redeem it. A request can also be `denied`, `failed` or `expired`.",
     "fields": [
       {
-        "name": "requestId",
+        "name": "approvalRequestId",
         "in": "path",
         "type": "string",
         "required": true,
-        "description": "The request's id.",
-        "example": "apr_7c2e…",
+        "description": "The approval request's id.",
+        "example": "apr_7c2e9b4d-1f3a-4e5b-8c6d-7e8f9a0b1c2d",
         "schema": {
           "type": "string",
-          "description": "The request's id."
+          "description": "The approval request's id."
         }
       }
     ],
@@ -2995,12 +3416,12 @@ export const OPERATIONS: readonly Operation[] = [
   {
     "operationId": "workspace.approvalRequests.redeem",
     "method": "post",
-    "path": "/workspace/approval-requests/{requestId}/redeem",
+    "path": "/workspace/approval-requests/{approvalRequestId}/redeem",
     "summary": "Redeem an approved request",
     "cli": {
       "command": "workspace approval-requests redeem",
       "args": [
-        "requestId"
+        "approvalRequestId"
       ],
       "confirm": false
     },
@@ -3011,15 +3432,15 @@ export const OPERATIONS: readonly Operation[] = [
     "description": "Runs an approved action that creates a secret, and returns the secret. The action runs only once. Only the personal access token that asked can redeem it. The CLI writes the secret to a file without printing it.",
     "fields": [
       {
-        "name": "requestId",
+        "name": "approvalRequestId",
         "in": "path",
         "type": "string",
         "required": true,
-        "description": "The request's id.",
-        "example": "apr_7c2e…",
+        "description": "The approval request's id.",
+        "example": "apr_7c2e9b4d-1f3a-4e5b-8c6d-7e8f9a0b1c2d",
         "schema": {
           "type": "string",
-          "description": "The request's id."
+          "description": "The approval request's id."
         }
       }
     ],
@@ -3047,7 +3468,7 @@ export const OPERATIONS: readonly Operation[] = [
         "idempotentHint": true
       }
     },
-    "description": "Lists the workspace's audit events, newest first. Paginate with the opaque `nextCursor` token. `limit` takes 1 to 100 and defaults to 25. `before` starts from a moment. `action` keeps one kind of event, and `actor` what one person, key or token did. With a personal access token, only workspace owners can call this, as with the audit page in the app. A workspace API key always can, because it acts as the workspace itself.",
+    "description": "Lists the workspace's audit events, newest first. Paginate with the opaque `nextCursor` token. `limit` takes 1 to 100 and defaults to 25. `before` starts from a moment. `action` keeps one kind of event, and `actor` what one person, key or token did. With a personal access token, only workspace owners and admins can call this, as with the audit page in the app. A workspace API key always can, because it acts as the workspace itself.",
     "fields": [
       {
         "name": "limit",
@@ -3094,7 +3515,7 @@ export const OPERATIONS: readonly Operation[] = [
         "type": "string",
         "required": false,
         "description": "Only events of this action.",
-        "example": "workspace.member_invited",
+        "example": "workspace.member.invited",
         "schema": {
           "type": "string",
           "maxLength": 100,
@@ -3107,7 +3528,7 @@ export const OPERATIONS: readonly Operation[] = [
         "type": "string",
         "required": false,
         "description": "Only what one person did (`user:` and the item's `actor.id`), or one key or token (`credential:` and the item's `credential.id`).",
-        "example": "user:usr_k3TAiF2ZP5sQ",
+        "example": "user:usr_4f8a2c1e-7b3d-4e9f-a6c5-2d1b0e9f8a7c",
         "schema": {
           "type": "string",
           "pattern": "^(user|credential):[\\w-]+$",
@@ -3116,6 +3537,7 @@ export const OPERATIONS: readonly Operation[] = [
       }
     ],
     "hasBody": false,
+    "paginated": true,
     "workspace": true,
     "acceptsApiKey": true,
     "scope": "workspace.audit:read"
@@ -3139,9 +3561,10 @@ export const OPERATIONS: readonly Operation[] = [
         "idempotentHint": true
       }
     },
-    "description": "Lists every workspace event a webhook endpoint can subscribe to, and what each one means. Pass some as `eventTypes` when you add an endpoint. An endpoint without a list receives every event.",
+    "description": "Lists every workspace event a webhook endpoint can subscribe to, and what each one means. Pass some as `eventTypes` when you add an endpoint. An endpoint without a list receives every event. Every type fits on one page, so `nextCursor` is null.",
     "fields": [],
     "hasBody": false,
+    "paginated": true,
     "workspace": true,
     "acceptsApiKey": true,
     "scope": "workspace.webhooks:read"
@@ -3221,6 +3644,7 @@ export const OPERATIONS: readonly Operation[] = [
       }
     ],
     "hasBody": false,
+    "paginated": true,
     "workspace": true,
     "acceptsApiKey": true,
     "scope": "workspace.members:read"
@@ -3274,9 +3698,36 @@ export const OPERATIONS: readonly Operation[] = [
       }
     ],
     "hasBody": false,
+    "paginated": true,
     "workspace": true,
     "acceptsApiKey": true,
     "scope": "workspace.members:read"
+  },
+  {
+    "operationId": "workspace.planUsage.get",
+    "method": "get",
+    "path": "/workspace/plan-usage",
+    "summary": "Get your plan's usage this period",
+    "cli": {
+      "command": "workspace plan-usage get",
+      "args": [],
+      "confirm": false
+    },
+    "mcp": {
+      "exposed": true,
+      "name": "workspace_plan_usage_get",
+      "hints": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true
+      }
+    },
+    "description": "Returns what the workspace used this period, with one entry for each thing its plan counts. Each entry has the plan's limit, or null when there is no limit. Each entry also says where it stands and where we start refusing new use. A period is one month from the workspace's billing date. That date comes from its subscription or, without one, from the day you created the workspace. On an annual plan, the counts still reset every month from the subscription's start.",
+    "fields": [],
+    "hasBody": false,
+    "workspace": true,
+    "acceptsApiKey": true,
+    "scope": "workspace:read"
   },
   {
     "operationId": "workspace.teams.list",
@@ -3327,35 +3778,10 @@ export const OPERATIONS: readonly Operation[] = [
       }
     ],
     "hasBody": false,
+    "paginated": true,
     "workspace": true,
     "acceptsApiKey": true,
     "scope": "workspace.teams:read"
-  },
-  {
-    "operationId": "workspace.usage",
-    "method": "get",
-    "path": "/workspace/usage",
-    "summary": "Get your plan's usage this period",
-    "cli": {
-      "command": "workspace usage",
-      "args": [],
-      "confirm": false
-    },
-    "mcp": {
-      "exposed": true,
-      "name": "workspace_usage",
-      "hints": {
-        "readOnlyHint": true,
-        "destructiveHint": false,
-        "idempotentHint": true
-      }
-    },
-    "description": "Returns what the workspace used this period, with one entry for each thing its plan counts. Each entry has the plan's limit, or null when there is no limit. Each entry also says where it stands and where we start refusing new use. A period is one month from the workspace's billing date. That date comes from its subscription or, without one, from the day you created the workspace. On an annual plan, the counts still reset every month from the subscription's start.",
-    "fields": [],
-    "hasBody": false,
-    "workspace": true,
-    "acceptsApiKey": true,
-    "scope": "workspace:read"
   },
   {
     "operationId": "workspace.webhookDeliveries.list",
@@ -3378,7 +3804,7 @@ export const OPERATIONS: readonly Operation[] = [
         "idempotentHint": true
       }
     },
-    "description": "Lists one endpoint's delivery history, newest first. Each entry shows the event's status, attempts and last HTTP status. Payloads aren't included. We keep the history for 30 days. Paginate with the opaque `nextCursor`. `before` starts from a moment, and `status` keeps one kind of delivery. With a personal access token, only the workspace owner can call this. A workspace API key with this scope can.",
+    "description": "Lists one endpoint's delivery history, newest first. Each entry shows the delivery's state, its attempts and the last HTTP status code. Payloads aren't included. We keep the history for 30 days. Paginate with the opaque `nextCursor`. `before` starts from a moment, and `status` keeps one kind of delivery. With a personal access token, the workspace's owners and admins can call this, and members on the test side. A workspace API key with this scope can.",
     "fields": [
       {
         "name": "endpointId",
@@ -3386,7 +3812,7 @@ export const OPERATIONS: readonly Operation[] = [
         "type": "string",
         "required": true,
         "description": "The endpoint's ID.",
-        "example": "we_3f0c…",
+        "example": "we_3f0c1a2e-4b5d-4c6e-8f70-1a2b3c4d5e6f",
         "schema": {
           "type": "string",
           "description": "The endpoint's ID."
@@ -3450,6 +3876,7 @@ export const OPERATIONS: readonly Operation[] = [
       }
     ],
     "hasBody": false,
+    "paginated": true,
     "workspace": true,
     "acceptsApiKey": true,
     "scope": "workspace.webhooks:read"
@@ -3476,7 +3903,7 @@ export const OPERATIONS: readonly Operation[] = [
         "idempotentHint": false
       }
     },
-    "description": "Sends a recorded delivery's event again, as a new delivery. The new delivery gets its own history entry. The event id stays the same, so receivers can deduplicate. Redelivery only works on an enabled endpoint. With a personal access token, only the workspace owner can call this. A workspace API key with this scope can.",
+    "description": "Sends a recorded delivery's event again, as a new delivery. The new delivery gets its own history entry. The event id stays the same, so receivers can deduplicate. Redelivery only works on an enabled endpoint. It answers 200 when we attempted the delivery right away, with the endpoint's answer, and 202 when it went to the queue. With a personal access token, the workspace's owners and admins can call this, and members on the test side. A workspace API key with this scope can.",
     "fields": [
       {
         "name": "endpointId",
@@ -3484,7 +3911,7 @@ export const OPERATIONS: readonly Operation[] = [
         "type": "string",
         "required": true,
         "description": "The endpoint's ID.",
-        "example": "we_3f0c…",
+        "example": "we_3f0c1a2e-4b5d-4c6e-8f70-1a2b3c4d5e6f",
         "schema": {
           "type": "string",
           "description": "The endpoint's ID."
@@ -3496,7 +3923,7 @@ export const OPERATIONS: readonly Operation[] = [
         "type": "string",
         "required": true,
         "description": "The delivery's ID.",
-        "example": "del_8a1b…",
+        "example": "del_8a1b2c3d-4e5f-4a6b-9c7d-8e9f0a1b2c3d",
         "schema": {
           "type": "string",
           "description": "The delivery's ID."
@@ -3522,7 +3949,7 @@ export const OPERATIONS: readonly Operation[] = [
       "exposed": false,
       "reason": "Changes where workspace data is sent. A person configures webhook endpoints (Settings → Developers in the app)."
     },
-    "description": "Registers an HTTPS URL to receive the workspace's events. Deliveries use the same signature format as Svix. The response includes the endpoint's signing secret (`whsec_…`). You see it only once, so store it to verify deliveries. The API refuses private hosts and hosts without HTTPS. A workspace can have at most 10 endpoints. With a personal access token, only the workspace owner can call this. A workspace API key with this scope can.",
+    "description": "Registers an HTTPS URL to receive the workspace's events. Deliveries use the same signature format as Svix. The response is the new endpoint with its signing secret (`whsec_…`) in `secret`. You see it only once, so store it to verify deliveries. The API refuses private hosts and hosts without HTTPS. A workspace can have at most 10 endpoints. With a personal access token, the workspace's owners and admins can call this, and members on the test side. A workspace API key with this scope can.",
     "fields": [
       {
         "name": "url",
@@ -3590,7 +4017,7 @@ export const OPERATIONS: readonly Operation[] = [
       "exposed": false,
       "reason": "Changes where workspace data is sent. A person configures webhook endpoints (Settings → Developers in the app)."
     },
-    "description": "Deletes the endpoint and its signing secret. All deliveries to the endpoint stop. Its delivery history goes with it. With a personal access token, only the workspace owner can call this. A workspace API key with this scope can.",
+    "description": "Deletes the endpoint and its signing secret. All deliveries to the endpoint stop. Its delivery history goes with it. With a personal access token, the workspace's owners and admins can call this, and members on the test side. A workspace API key with this scope can.",
     "fields": [
       {
         "name": "endpointId",
@@ -3598,7 +4025,7 @@ export const OPERATIONS: readonly Operation[] = [
         "type": "string",
         "required": true,
         "description": "The endpoint's ID.",
-        "example": "we_3f0c…",
+        "example": "we_3f0c1a2e-4b5d-4c6e-8f70-1a2b3c4d5e6f",
         "schema": {
           "type": "string",
           "description": "The endpoint's ID."
@@ -3626,7 +4053,7 @@ export const OPERATIONS: readonly Operation[] = [
       "exposed": false,
       "reason": "Changes where workspace data is sent. A person configures webhook endpoints (Settings → Developers in the app)."
     },
-    "description": "Resumes deliveries to an endpoint that stopped after repeated failures. The endpoint keeps its signing secret. Its failure count resets. With a personal access token, only the workspace owner can call this. A workspace API key with this scope can.",
+    "description": "Resumes deliveries to an endpoint that stopped after repeated failures. The endpoint keeps its signing secret. Its failure count resets. With a personal access token, the workspace's owners and admins can call this, and members on the test side. A workspace API key with this scope can.",
     "fields": [
       {
         "name": "endpointId",
@@ -3634,7 +4061,7 @@ export const OPERATIONS: readonly Operation[] = [
         "type": "string",
         "required": true,
         "description": "The endpoint's ID.",
-        "example": "we_3f0c…",
+        "example": "we_3f0c1a2e-4b5d-4c6e-8f70-1a2b3c4d5e6f",
         "schema": {
           "type": "string",
           "description": "The endpoint's ID."
@@ -3667,7 +4094,7 @@ export const OPERATIONS: readonly Operation[] = [
         "idempotentHint": true
       }
     },
-    "description": "Returns one endpoint without its signing secret. It shows whether the endpoint is on, its consecutive failures and its last delivery status. With a personal access token, only the workspace owner can call this. A workspace API key with this scope can.",
+    "description": "Returns one endpoint without its signing secret. It shows whether the endpoint is on, its consecutive failures and its last delivery status. With a personal access token, the workspace's owners and admins can call this, and members on the test side. A workspace API key with this scope can.",
     "fields": [
       {
         "name": "endpointId",
@@ -3675,7 +4102,7 @@ export const OPERATIONS: readonly Operation[] = [
         "type": "string",
         "required": true,
         "description": "The endpoint's ID.",
-        "example": "we_3f0c…",
+        "example": "we_3f0c1a2e-4b5d-4c6e-8f70-1a2b3c4d5e6f",
         "schema": {
           "type": "string",
           "description": "The endpoint's ID."
@@ -3706,9 +4133,10 @@ export const OPERATIONS: readonly Operation[] = [
         "idempotentHint": true
       }
     },
-    "description": "Lists the workspace's outgoing webhook endpoints, newest first. The list leaves out their signing secrets. A workspace has at most 10 endpoints, so the list is a single page. Its `nextCursor` is null. With a personal access token, only the workspace owner can call this. A workspace API key with this scope can.",
+    "description": "Lists the workspace's outgoing webhook endpoints, newest first. The list leaves out their signing secrets. A workspace has at most 10 endpoints, so the list is a single page. Its `nextCursor` is null. With a personal access token, the workspace's owners and admins can call this, and members on the test side. A workspace API key with this scope can.",
     "fields": [],
     "hasBody": false,
+    "paginated": true,
     "workspace": true,
     "acceptsApiKey": true,
     "scope": "workspace.webhooks:read"
@@ -3734,7 +4162,7 @@ export const OPERATIONS: readonly Operation[] = [
         "idempotentHint": false
       }
     },
-    "description": "Sends a `ping` event to the endpoint, signed like every delivery. Use it to check that an integration verifies and accepts deliveries. With a personal access token, only the workspace owner can call this. A workspace API key with this scope can.",
+    "description": "Sends a `ping` event to the endpoint, signed like every delivery. Use it to check that an integration verifies and accepts deliveries. It answers 200 when we attempted the delivery right away, with the endpoint's answer, and 202 when it went to the queue. With a personal access token, the workspace's owners and admins can call this, and members on the test side. A workspace API key with this scope can.",
     "fields": [
       {
         "name": "endpointId",
@@ -3742,7 +4170,7 @@ export const OPERATIONS: readonly Operation[] = [
         "type": "string",
         "required": true,
         "description": "The endpoint's ID.",
-        "example": "we_3f0c…",
+        "example": "we_3f0c1a2e-4b5d-4c6e-8f70-1a2b3c4d5e6f",
         "schema": {
           "type": "string",
           "description": "The endpoint's ID."
@@ -3770,7 +4198,7 @@ export const OPERATIONS: readonly Operation[] = [
       "exposed": false,
       "reason": "Changes where workspace data is sent. A person configures webhook endpoints (Settings → Developers in the app)."
     },
-    "description": "Changes an endpoint's URL, description or event types in place. Only the fields you send change. The endpoint keeps its signing secret, so receivers keep verifying deliveries. A new URL must pass the same checks as on create. It must use HTTPS and can't be a private host. With a personal access token, only the workspace owner can call this. A workspace API key with this scope can.",
+    "description": "Changes an endpoint's URL, description or event types in place. Only the fields you send change. The endpoint keeps its signing secret, so receivers keep verifying deliveries. A new URL must pass the same checks as on create. It must use HTTPS and can't be a private host. With a personal access token, the workspace's owners and admins can call this, and members on the test side. A workspace API key with this scope can.",
     "fields": [
       {
         "name": "endpointId",
@@ -3778,7 +4206,7 @@ export const OPERATIONS: readonly Operation[] = [
         "type": "string",
         "required": true,
         "description": "The endpoint's ID.",
-        "example": "we_3f0c…",
+        "example": "we_3f0c1a2e-4b5d-4c6e-8f70-1a2b3c4d5e6f",
         "schema": {
           "type": "string",
           "description": "The endpoint's ID."

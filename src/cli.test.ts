@@ -63,7 +63,8 @@ function fakeIo(overrides: Partial<Io> = {}) {
 describe(`${brand.name} cli`, () => {
   it("prints help naming the product and every command; unknown commands fail with help", async () => {
     const { io, out, err } = fakeIo();
-    expect(await run([], io)).toBe(1);
+    // No command is wrong usage: exit code 2, as grep and bash use it.
+    expect(await run([], io)).toBe(2);
     const help = err.join("\n");
     expect(help).toContain(`Usage: ${brand.name}`);
     expect(help).toContain(`The ${brand.productName} CLI`);
@@ -74,7 +75,8 @@ describe(`${brand.name} cli`, () => {
     expect(await run(["whoami", "--help"], io)).toBe(0);
     expect(out.at(-1)).toContain("Usage:");
     expect(out.at(-1)).toContain("--json");
-    expect(await run(["nope"], io)).toBe(1);
+    expect(await run(["nope"], io)).toBe(2);
+    expect(await run(["whoami", "--nope"], io)).toBe(2);
     expect(err.join("\n")).toContain("unknown command 'nope'");
     expect(await run(["--version"], io)).toBe(0);
     expect(out.at(-1)).toBe("0.0.0-dev");
@@ -87,7 +89,7 @@ describe(`${brand.name} cli`, () => {
     });
     expect(
       await run(
-        ["login", "--token", PAT, "--api", "http://localhost:8787"],
+        ["login", "--token", PAT, "--base-url", "http://localhost:8787"],
         io,
       ),
     ).toBe(0);
@@ -95,7 +97,7 @@ describe(`${brand.name} cli`, () => {
     expect(statSync(path).mode & 0o777).toBe(0o600);
     expect(JSON.parse(readFileSync(path, "utf8"))).toEqual({
       token: PAT,
-      api: "http://localhost:8787",
+      baseURL: "http://localhost:8787",
       workspace: "acme",
     });
     expect(out.join("\n")).toContain("Hello Casey Customer");
@@ -114,14 +116,17 @@ describe(`${brand.name} cli`, () => {
         ),
     });
     expect(
-      await run(["login", "--token", PAT, "--api", "http://typo:8787"], io),
-    ).toBe(1);
+      await run(
+        ["login", "--token", PAT, "--base-url", "http://typo:8787"],
+        io,
+      ),
+    ).toBe(4);
     expect(err.join("\n")).toContain("Nothing was saved");
     const saved = existsSync(configPath(io.homeDir))
       ? JSON.parse(readFileSync(configPath(io.homeDir), "utf8"))
       : {};
     expect(saved.token).toBeUndefined();
-    expect(saved.api).toBeUndefined();
+    expect(saved.baseURL).toBeUndefined();
   });
 
   it("reads the token from stdin when --token is omitted", async () => {
@@ -182,7 +187,8 @@ describe(`${brand.name} cli`, () => {
 
   it("surfaces the API's error envelope, and refuses to call without a token or workspace", async () => {
     const { io, err } = fakeIo();
-    expect(await run(["whoami"], io)).toBe(1);
+    // Not logged in: exit code 4.
+    expect(await run(["whoami"], io)).toBe(4);
     expect(err.at(-1)).toContain("not logged in");
     // Two workspaces → no default chosen by login → api needs one.
     const noWs = fakeIo();

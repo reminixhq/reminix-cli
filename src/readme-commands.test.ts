@@ -70,7 +70,7 @@ describe("the commands in the package READMEs", () => {
     );
   });
 
-  for (const file of ["cli.md", "sdk.md", "python.md"]) {
+  for (const file of ["cli.md", "typescript-sdk.md", "python-sdk.md"]) {
     const path = join(dir, file);
     if (!existsSync(path)) continue;
     for (const line of commandLines(readFileSync(path, "utf8"))) {

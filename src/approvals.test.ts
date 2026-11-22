@@ -106,7 +106,7 @@ describe("workspace approval-requests redeem", () => {
         ],
         t.io,
       ),
-    ).toBe(1);
+    ).toBe(2); // --write-env is required: wrong usage
     expect(
       await run(
         [

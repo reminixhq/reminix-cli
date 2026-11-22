@@ -13,6 +13,8 @@ import { basename, join, relative, resolve } from "node:path";
 import { brand } from "../brand/index.ts";
 import {
   detectScript,
+  isScriptFile,
+  readsArguments,
   slugOf,
   titleOf,
   type Detected,
@@ -22,8 +24,10 @@ import type { Schemas } from "@reminix/sdk";
 
 import type { Command as Commander } from "commander";
 
+import { webOriginFor } from "../browser-login.ts";
 import type { CliContext, Command } from "../cli.ts";
 import { covers } from "../covers.ts";
+import { UsageError } from "../errors.ts";
 import { rawRequest } from "../http.ts";
 import { json } from "../output.ts";
 import { describeSavedFiles, downloadSavedFiles, uploadPath } from "./files.ts";
@@ -380,7 +384,7 @@ async function publishFolder(
     // The draft you tested, published as it is: nothing is uploaded.
     const version = Number(options.number);
     if (!Number.isInteger(version) || version < 1) {
-      throw new Error("--number: a version's number, like --number 3");
+      throw new UsageError("--number: a version's number, like --number 3");
     }
     const script = await call(
       "POST",
@@ -395,7 +399,7 @@ async function publishFolder(
       script,
       line: approveUrl
         ? `Publishing ${manifest.slug} version ${version} waits for a person's approval: ${approveUrl}`
-        : `Published ${manifest.slug} version ${version}.`,
+        : published(ctx, manifest.slug, version),
     };
   }
   // One call: the API creates the script if it's new, takes the name and
@@ -428,9 +432,49 @@ async function publishFolder(
     ? `Uploaded ${manifest.slug} version ${version.version}; publishing waits for a person's approval: ${approveUrl}`
     : mode === "upload"
       ? `Uploaded ${manifest.slug} version ${version.version} as a draft. Test it with \`${brand.name} run ${manifest.slug} --number ${version.version}\`, then publish it in the app or with \`${brand.name} publish --number ${version.version}\`.`
-      : `Published ${manifest.slug} version ${version.version}.`;
+      : published(ctx, manifest.slug, version.version);
   const found = detected ? `${describeDetected(manifest, detected)}\n` : "";
-  return { slug: manifest.slug, version, script, line: `${found}${line}` };
+  const hint = inputsHint(dir, manifest, detected);
+  return {
+    slug: manifest.slug,
+    version,
+    script,
+    line: `${found}${line}${hint ? `\n${hint}` : ""}`,
+  };
+}
+
+/**
+ * The next step for a script whose code reads command-line arguments
+ * but that has no inputs: its form would have no fields (the onboarding
+ * walkthrough, 2026-11-20). `reminix init` writes the reminix.json.
+ */
+export function inputsHint(
+  dir: string,
+  manifest: Manifest,
+  detected: Detected | null,
+): string | null {
+  if (!detected || manifest.inputSchema !== undefined) return null;
+  if (detected.command.includes("{") || !isScriptFile(detected.source)) {
+    return null;
+  }
+  const code = localFolder(dir, [detected.source]).read(detected.source);
+  if (code === null || !readsArguments(detected.kind, code)) return null;
+  return [
+    "",
+    `${detected.source} reads command-line arguments, but this script has no inputs yet, so its form has no fields.`,
+    `To add a field, put its name in braces at the end of the command, then publish again:`,
+    `  ${brand.name} init "${detected.command} {input}"`,
+    `  ${brand.name} publish`,
+    `Inputs: https://${brand.domain}/docs/scripts/#customizing-with-reminixjson`,
+  ].join("\n");
+}
+
+/** "Published …", with where the script opens in the app when the API's address says. */
+function published(ctx: CliContext, slug: string, version: number): string {
+  const web = webOriginFor(ctx.settings().baseURL);
+  return web
+    ? `Published ${slug} version ${version}: ${web}/scripts/${encodeURIComponent(slug)}`
+    : `Published ${slug} version ${version}.`;
 }
 
 const definePublish =
@@ -484,7 +528,9 @@ const defineFolderOptions = (command: Commander, ctx: CliContext, mode: Mode) =>
           options.number !== undefined &&
           folders.length + missing.length !== 1
         ) {
-          throw new Error("--number publishes one script: name one folder");
+          throw new UsageError(
+            "--number publishes one script: name one folder",
+          );
         }
         // One folder: its result as before; several: one entry per folder.
         if (folders.length === 1 && missing.length === 0) {
@@ -531,10 +577,31 @@ const defineFolderOptions = (command: Commander, ctx: CliContext, mode: Mode) =>
 
 const defineRun: Define = (command, ctx) =>
   covers(command, "runs.create", "scriptVersions.testRun")
-    .option("--input <json>", "the inputs, as a JSON object", "{}")
+    .option(
+      "-f, --raw-field <name=value>",
+      "an input, as a string (repeat it for several)",
+      (value: string, all: string[]) => [...all, value],
+      [] as string[],
+    )
+    .option(
+      "-F, --field <name=value>",
+      "an input, typed: a number, true, false, null or JSON (repeat it for several)",
+      (value: string, all: string[]) => [...all, value],
+      [] as string[],
+    )
+    .option(
+      "--input-file <path>",
+      "the inputs as a JSON object, from a file (- reads standard input)",
+    )
     .option(
       "--file <input=path>",
       "upload a file as a file input (repeat it for several)",
+      (value: string, all: string[]) => [...all, value],
+      [] as string[],
+    )
+    .option(
+      "--text <input=path>",
+      "set a text input to a file's contents, lines and all (- reads standard input)",
       (value: string, all: string[]) => [...all, value],
       [] as string[],
     )
@@ -559,8 +626,11 @@ const defineRun: Define = (command, ctx) =>
       async (
         slug: string,
         options: {
-          input: string;
+          rawField: string[];
+          field: string[];
+          inputFile?: string;
           file: string[];
+          text: string[];
           out?: string;
           number?: string;
           log?: boolean;
@@ -569,25 +639,19 @@ const defineRun: Define = (command, ctx) =>
           json?: boolean;
         },
       ) => {
-        let inputs: unknown;
-        try {
-          inputs = JSON.parse(options.input);
-        } catch (error) {
-          throw new Error(
-            `--input: not valid JSON (${(error as Error).message})`,
-            {
-              cause: error,
-            },
-          );
-        }
-        if (
-          inputs === null ||
-          typeof inputs !== "object" ||
-          Array.isArray(inputs)
-        ) {
-          throw new Error(
-            '--input: must be a JSON object, e.g. \'{"orderId":"o_1"}\'',
-          );
+        const inputs = await inputsOf(ctx, options);
+        // --text input=path: a long text input (several lines) from a file
+        // or standard input, as it is, rather than escaped inside --input.
+        for (const spec of options.text) {
+          const at = spec.indexOf("=");
+          if (at <= 0 || at === spec.length - 1) {
+            throw new UsageError(
+              `--text: input=path, e.g. --text message=./reply.txt (got "${spec}")`,
+            );
+          }
+          const path = spec.slice(at + 1);
+          (inputs as Record<string, unknown>)[spec.slice(0, at)] =
+            path === "-" ? await ctx.io.stdin() : readFileSync(path, "utf8");
         }
         const call = (method: string, path: string, body?: unknown) =>
           rawRequest(ctx, { method, path, body, workspace: options.workspace });
@@ -597,7 +661,7 @@ const defineRun: Define = (command, ctx) =>
           for (const spec of options.file) {
             const at = spec.indexOf("=");
             if (at <= 0 || at === spec.length - 1) {
-              throw new Error(
+              throw new UsageError(
                 `--file: input=path, e.g. --file statement=./sept.pdf (got "${spec}")`,
               );
             }
@@ -622,7 +686,7 @@ const defineRun: Define = (command, ctx) =>
           options.number !== undefined &&
           !/^[1-9]\d*$/.test(options.number)
         ) {
-          throw new Error("--number: a version's number, like --number 2");
+          throw new UsageError("--number: a version's number, like --number 2");
         }
         let run = (await call(
           "POST",
@@ -748,3 +812,68 @@ export const scriptCommands: Command = (program, ctx) => {
     `Run a script and print its output. Use --number to test a draft. Short for ${brand.name} scripts run`,
   );
 };
+
+/**
+ * A run's inputs from the command line, as `gh api` takes fields: the
+ * whole object from `--input-file` (a file, or `-` for standard input),
+ * then each `-F name=value` (typed: a number, true, false, null or JSON;
+ * anything else stays a string) and `-f name=value` (always a string)
+ * over it, in that order.
+ */
+async function inputsOf(
+  ctx: CliContext,
+  options: { rawField: string[]; field: string[]; inputFile?: string },
+): Promise<Record<string, unknown>> {
+  let inputs: Record<string, unknown> = {};
+  if (options.inputFile !== undefined) {
+    const text =
+      options.inputFile === "-"
+        ? await ctx.io.stdin()
+        : readFileSync(options.inputFile, "utf8");
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch (error) {
+      throw new UsageError(
+        `--input-file: not valid JSON (${(error as Error).message})`,
+      );
+    }
+    if (
+      parsed === null ||
+      typeof parsed !== "object" ||
+      Array.isArray(parsed)
+    ) {
+      throw new UsageError(
+        '--input-file: must hold a JSON object, e.g. {"orderId": "o_1"}',
+      );
+    }
+    inputs = parsed as Record<string, unknown>;
+  }
+  const split = (flag: string, spec: string): [string, string] => {
+    const at = spec.indexOf("=");
+    if (at <= 0) {
+      throw new UsageError(
+        `${flag}: name=value, e.g. ${flag} orderId=o_1 (got "${spec}")`,
+      );
+    }
+    return [spec.slice(0, at), spec.slice(at + 1)];
+  };
+  for (const spec of options.field) {
+    const [name, value] = split("-F", spec);
+    inputs[name] = typed(value);
+  }
+  for (const spec of options.rawField) {
+    const [name, value] = split("-f", spec);
+    inputs[name] = value;
+  }
+  return inputs;
+}
+
+/** `-F`'s value: JSON where it is (42, true, null, {"a":1}), else the text. */
+function typed(value: string): unknown {
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return value;
+  }
+}

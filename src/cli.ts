@@ -1,6 +1,9 @@
 import { brand } from "./brand/index.ts";
 import {
-  ApiError,
+  APIConnectionError,
+  APIError,
+  AuthenticationError,
+  connectionErrorFrom,
   createClient,
   keysFrom,
   withRetries,
@@ -9,14 +12,21 @@ import {
 import { Command as Commander, CommanderError } from "commander";
 
 import { platformCommands } from "./commands.ts";
-import { environmentEnvVar, resolveSettings, type Settings } from "./config.ts";
+import {
+  baseURLEnvVar,
+  environmentEnvVar,
+  resolveSettings,
+  type Settings,
+} from "./config.ts";
+import { EXIT, NotLoggedInError } from "./errors.ts";
 import { generatedCommands } from "./generated.ts";
+import * as product from "./product/index.ts";
 import { productCommands } from "./product/index.ts";
 
 /**
  * The product's command-line client — a person talking to the public API
  * with a personal access token (docs/architecture.md "Personal access
- * tokens"). commander parses; @repo/sdk (generated from the /v1 routes)
+ * tokens"). commander parses; @repo/typescript-sdk (generated from the /v1 routes)
  * makes the calls. The binary is named after the product (brand.json
  * `name`); everything it prints reads identity from @repo/brand.
  *
@@ -29,6 +39,9 @@ import { productCommands } from "./product/index.ts";
  * "Environments"): where the API says which one a command acted in (the
  * X-Environment response header), `run()` adds an `Environment: <name>`
  * line on stderr — stdout, `--json` included, stays exactly the output.
+ *
+ * Exit codes (./errors.ts): 0 success, 1 a failure, 2 wrong usage, 4
+ * not logged in or a refused credential (401).
  */
 export type Io = {
   env: Record<string, string | undefined>;
@@ -58,21 +71,24 @@ export type CliContext = {
    * that takes none (/v1/user/*).
    */
   credentials: (options?: { workspace?: string | false }) => {
-    api: string;
+    /** The API's origin (`--base-url` / <NAME>_BASE_URL / config). */
+    baseURL: string;
     token: string;
     workspace: string | undefined;
     /** Sent as X-Environment when set (`--environment` / <NAME>_ENVIRONMENT / config). */
     environment: string | undefined;
   };
-  /** A typed API client over those credentials (see @repo/sdk). */
+  /** A typed API client over those credentials (see @repo/typescript-sdk). */
   client: (options?: { workspace?: string | false }) => Client;
   /**
    * `io.fetch`, noting the environment each answer names — a command that
    * calls the API without `client()` uses this, so its output names it too.
    * Every write gets an Idempotency-Key (from `--idempotency-key` when
    * given, one per write otherwise) and a failed attempt is retried with
-   * the same key (@repo/sdk withRetries), so a command never does a write
+   * the same key (@repo/typescript-sdk withRetries), so a command never does a write
    * twice — nor does running it again with the same `--idempotency-key`.
+   * Network failures are the SDK's APIConnectionError, and every request
+   * names the CLI in its User-Agent (`<name>-cli/<version>`).
    */
   fetch: (request: Request) => Promise<Response>;
 };
@@ -97,6 +113,8 @@ export function createProgram(io: Io): Commander {
   return build(io).program;
 }
 
+const VERSION = process.env.CLI_VERSION ?? "0.0.0-dev";
+
 function build(io: Io) {
   // The environment the API last said it acted in (X-Environment).
   let actedIn: string | null = null;
@@ -105,12 +123,15 @@ function build(io: Io) {
   const program = new Commander()
     .name(brand.name)
     .description(`The ${brand.productName} CLI`)
-    .version(process.env.CLI_VERSION ?? "0.0.0-dev")
+    .version(VERSION)
     .addHelpText(
       "after",
       `\nToken: \`${brand.name} login\` stores it in ~/.config/${brand.name}/; ${tokenEnvVar()} overrides.` +
-        `\nEnvironment: --environment, else ${environmentEnvVar()}, else \`${brand.name} environment use\`, else the default.`,
+        `\nEnvironment: --environment, else ${environmentEnvVar()}, else \`${brand.name} environment use\`, else the default.` +
+        `\nAPI: --base-url, else ${baseURLEnvVar()}, else the one \`${brand.name} login --base-url\` saved.` +
+        "\nExit codes: 0 success, 1 failure, 2 wrong usage, 4 not logged in.",
     )
+    .option("--base-url <url>", "the API's origin, without /v1")
     .option(
       "--environment <name>",
       "act in this environment (where the product has them)",
@@ -128,13 +149,15 @@ function build(io: Io) {
   const ctx: CliContext = {
     io,
     settings: () =>
-      resolveSettings(io.env, io.homeDir, {
-        environment: program.opts<{ environment?: string }>().environment,
-      }),
+      resolveSettings(
+        io.env,
+        io.homeDir,
+        program.opts<{ environment?: string; baseUrl?: string }>(),
+      ),
     credentials: (options = {}) => {
       const settings = ctx.settings();
       if (!settings.token) {
-        throw new Error(
+        throw new NotLoggedInError(
           `not logged in. Run \`${brand.name} login\` or set ${tokenEnvVar()}.`,
         );
       }
@@ -149,7 +172,7 @@ function build(io: Io) {
           );
         }
         return {
-          api: settings.api,
+          baseURL: settings.baseURL,
           token: settings.token,
           workspace: undefined,
           environment: settings.environment,
@@ -165,7 +188,7 @@ function build(io: Io) {
         );
       }
       return {
-        api: settings.api,
+        baseURL: settings.baseURL,
         token: settings.token,
         workspace,
         environment: settings.environment,
@@ -178,7 +201,7 @@ function build(io: Io) {
         fetch: ctx.fetch,
         maxRetries: 0,
       }),
-    fetch: (request) => {
+    fetch: async (request) => {
       sending ??= withRetries(
         async (attempt) => {
           const response = await io.fetch(attempt);
@@ -191,7 +214,14 @@ function build(io: Io) {
           ),
         },
       );
-      return sending(request);
+      const headers = new Headers(request.headers);
+      headers.set("user-agent", `${brand.name}-cli/${VERSION}`);
+      const named = new Request(request, { headers });
+      try {
+        return await sending(named);
+      } catch (error) {
+        throw connectionErrorFrom(error, request.signal);
+      }
     },
   };
   for (const register of commands) register(program, ctx);
@@ -204,37 +234,97 @@ export async function run(argv: string[], io: Io): Promise<number> {
     await program.parseAsync(argv, { from: "user" });
     const environment = actedIn();
     if (environment) io.stderr(`Environment: ${environment}`);
-    return 0;
+    return EXIT.ok;
   } catch (error) {
     const environment = actedIn();
-    // Help and version also end here (exitOverride): exit code 0.
-    if (error instanceof CommanderError) return error.exitCode;
+    // Help and version also end here (exitOverride) with 0; any other
+    // error commander finds (an unknown flag, a missing argument, a
+    // group without its command) is wrong usage.
+    if (error instanceof CommanderError) {
+      return error.exitCode === 0 ? EXIT.ok : EXIT.usage;
+    }
+    const code = exitCode(error);
     // With --json, failures are JSON too (stderr): scripts and agents
     // parse one shape — the API's own error envelope.
     if (argv.includes("--json")) {
       io.stderr(
         JSON.stringify({
           error:
-            error instanceof ApiError
+            error instanceof APIError
               ? {
                   code: error.code,
                   message: error.message,
                   status: error.status,
                   ...(error.requestId ? { requestId: error.requestId } : {}),
+                  ...(error.docs ? { docs: error.docs } : {}),
+                  ...(error.details ? { details: error.details } : {}),
                 }
-              : { code: "cli_error", message: (error as Error).message },
+              : {
+                  code:
+                    code === EXIT.usage
+                      ? "usage_error"
+                      : code === EXIT.auth
+                        ? "not_logged_in"
+                        : "cli_error",
+                  message: (error as Error).message,
+                },
           ...(environment ? { environment } : {}),
         }),
       );
-      return 1;
+      return code;
     }
-    if (error instanceof ApiError) {
+    if (error instanceof APIError) {
       const requestId = error.requestId ? ` [request ${error.requestId}]` : "";
       io.stderr(`${brand.name}: ${error.message} (${error.code})${requestId}`);
+      for (const detail of error.details ?? []) {
+        io.stderr(
+          `  ${detail.path ? `${detail.path}: ` : ""}${detail.message}`,
+        );
+      }
+      const hint = scopeHint(error);
+      if (hint) io.stderr(hint);
+      if (error.docs) io.stderr(`See ${error.docs}`);
     } else {
-      io.stderr(`${brand.name}: ${(error as Error).message}`);
+      // A network failure names what failed (its cause).
+      const cause =
+        error instanceof APIConnectionError && error.cause instanceof Error
+          ? ` (${error.cause.message})`
+          : "";
+      io.stderr(`${brand.name}: ${(error as Error).message}${cause}`);
     }
     if (environment) io.stderr(`Environment: ${environment}`);
-    return 1;
+    return code;
   }
+}
+
+/** The exit code for a failure (./errors.ts). */
+function exitCode(error: unknown): number {
+  // A 401, also behind a command's own message (login's "could not verify").
+  if (
+    error instanceof AuthenticationError ||
+    (error as Error | null)?.cause instanceof AuthenticationError
+  ) {
+    return EXIT.auth;
+  }
+  const own = (error as { exitCode?: unknown } | null)?.exitCode;
+  return typeof own === "number" && !(error instanceof APIError)
+    ? own
+    : EXIT.failure;
+}
+
+/**
+ * How to fix a refusal for a missing permission (owner, 2026-11-20: a
+ * new person's `publish` failed after a Read only sign-in, and nothing
+ * said what to do). A product's own wording first, from an optional
+ * `productErrorHint(error)` in ./product/index.ts, naming its quick
+ * choice ("…choose Publish and run scripts."); else the general one.
+ */
+export function scopeHint(error: APIError): string | null {
+  const own = Reflect.get(product, "productErrorHint") as
+    ((error: APIError) => string | null | undefined) | undefined;
+  const mine = own?.(error);
+  if (mine) return mine;
+  const scope = /not granted the ([\w.:-]+) scope/.exec(error.message)?.[1];
+  if (error.code !== "forbidden" || !scope) return null;
+  return `Sign in again with \`${brand.name} login\` and choose access that includes ${scope}.`;
 }

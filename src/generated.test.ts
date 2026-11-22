@@ -130,7 +130,7 @@ describe("generated commands (one per /v1 operation)", () => {
     expect(url.searchParams.get("limit")).toBe("5");
     expect(calls[0].request.headers.get("idempotency-key")).toBeNull();
     expect(out[0]).toContain("del_1");
-    expect(out.at(-1)).toBe("More: --cursor abc");
+    expect(out.at(-1)).toBe("More: --cursor abc, or --all for every page");
   });
 
   it("prints the API's JSON with --json", async () => {
@@ -166,7 +166,7 @@ describe("generated commands (one per /v1 operation)", () => {
         ],
         io,
       ),
-    ).toBe(1);
+    ).toBe(2);
     expect(err.join("\n")).toMatch(/--yes/);
     expect(calls).toHaveLength(0);
     const confirmed = terminal(() => new Response(null, { status: 204 }));
@@ -193,7 +193,7 @@ describe("generated commands (one per /v1 operation)", () => {
         ["workspace", "webhook-endpoints", "create", "--workspace", "acme"],
         missing.io,
       ),
-    ).toBe(1);
+    ).toBe(2);
     expect(missing.err.join("\n")).toContain("missing --url");
 
     const failing = terminal(() =>
@@ -231,6 +231,165 @@ describe("generated commands (one per /v1 operation)", () => {
         requestId: "r1",
       },
     });
+  });
+
+  it("take a list as a repeatable singular flag, commas too, and --clear-<field> for null", async () => {
+    const { io, calls } = terminal(() =>
+      Response.json({ id: "we_1" }, { status: 200 }),
+    );
+    expect(
+      await run(
+        [
+          "workspace",
+          "webhook-endpoints",
+          "update",
+          "we_1",
+          "--event-type",
+          "a.one",
+          "--event-type",
+          "b.two,c.three",
+          "--clear-description",
+          "--workspace",
+          "acme",
+        ],
+        io,
+      ),
+    ).toBe(0);
+    expect(JSON.parse(calls[0]!.body)).toEqual({
+      eventTypes: ["a.one", "b.two", "c.three"],
+      description: null,
+    });
+    const both = terminal(() => Response.json({}));
+    expect(
+      await run(
+        [
+          "workspace",
+          "webhook-endpoints",
+          "update",
+          "we_1",
+          "--description",
+          "x",
+          "--clear-description",
+          "--workspace",
+          "acme",
+        ],
+        both.io,
+      ),
+    ).toBe(2);
+    expect(both.calls).toHaveLength(0);
+  });
+
+  it("--all follows every page into one answer", async () => {
+    const { io, out, calls } = terminal((request) => {
+      const cursor = new URL(request.url).searchParams.get("cursor");
+      return Response.json(
+        cursor === null
+          ? { items: [{ id: "mem_1" }], nextCursor: "2" }
+          : { items: [{ id: "mem_2" }], nextCursor: null },
+      );
+    });
+    expect(
+      await run(
+        [
+          "workspace",
+          "members",
+          "list",
+          "--all",
+          "--limit",
+          "1",
+          "--workspace",
+          "acme",
+          "--json",
+        ],
+        io,
+      ),
+    ).toBe(0);
+    expect(JSON.parse(out.join("\n"))).toEqual({
+      items: [{ id: "mem_1" }, { id: "mem_2" }],
+      nextCursor: null,
+    });
+    expect(
+      calls.map((c) => new URL(c.request.url).searchParams.get("cursor")),
+    ).toEqual([null, "2"]);
+    expect(new URL(calls[1]!.request.url).searchParams.get("limit")).toBe("1");
+  });
+
+  it("print each detail and the docs link, carry them in --json, and exit 4 on a 401", async () => {
+    const envelope = {
+      error: {
+        code: "invalid_request",
+        message: "Invalid input",
+        requestId: "r1",
+        docs: "https://example.com/docs/errors/#invalid_request",
+        details: [{ path: "url", message: "Invalid URL" }],
+      },
+    };
+    const text = terminal(() => Response.json(envelope, { status: 400 }));
+    const create = [
+      "workspace",
+      "webhook-endpoints",
+      "create",
+      "--url",
+      "nope",
+      "--workspace",
+      "acme",
+    ];
+    expect(await run(create, text.io)).toBe(1);
+    expect(text.err).toEqual([
+      `${brand.name}: Invalid input (invalid_request) [request r1]`,
+      "  url: Invalid URL",
+      "See https://example.com/docs/errors/#invalid_request",
+    ]);
+    const asJson = terminal(() => Response.json(envelope, { status: 400 }));
+    expect(await run([...create, "--json"], asJson.io)).toBe(1);
+    expect(JSON.parse(asJson.err[0]!)).toEqual({
+      error: { ...envelope.error, status: 400 },
+    });
+    const refused = terminal(() =>
+      Response.json(
+        { error: { code: "unauthorized", message: "Unauthorized" } },
+        { status: 401 },
+      ),
+    );
+    expect(
+      await run(["workspace", "get", "--workspace", "acme"], refused.io),
+    ).toBe(4);
+  });
+
+  it("send every request to --base-url, else <NAME>_BASE_URL, named by the CLI's User-Agent", async () => {
+    const { io, calls } = terminal(() => Response.json({}));
+    io.env[`${brand.identifier.toUpperCase()}_BASE_URL`] = "http://env:1";
+    await run(["workspace", "get", "--workspace", "acme"], io);
+    await run(
+      [
+        "--base-url",
+        "http://flag:2/",
+        "workspace",
+        "get",
+        "--workspace",
+        "acme",
+      ],
+      io,
+    );
+    expect(calls.map((c) => new URL(c.request.url).origin)).toEqual([
+      "http://env:1",
+      "http://flag:2",
+    ]);
+    expect(calls[0]!.request.headers.get("user-agent")).toBe(
+      `${brand.name}-cli/0.0.0-dev`,
+    );
+  });
+
+  it("turn a network failure into a failure (exit 1) that names it", async () => {
+    const { io, err } = terminal(() => {
+      throw new TypeError("fetch failed");
+    });
+    expect(
+      await run(["workspace", "get", "--workspace", "acme", "--json"], io),
+    ).toBe(1);
+    expect(JSON.parse(err[0]!).error.message).toBe(
+      "Could not connect to the API",
+    );
   });
 
   it("leaves hand-written commands in place (they win on a name clash)", async () => {

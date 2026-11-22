@@ -152,7 +152,7 @@ describe("login and logout", () => {
       },
     });
     expect(
-      await run(["login", "--api", "http://localhost:8787"], terminal),
+      await run(["login", "--base-url", "http://localhost:8787"], terminal),
     ).toBe(0);
     const saved = JSON.parse(
       readFileSync(configPath(terminal.homeDir), "utf8"),

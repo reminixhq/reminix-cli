@@ -41,6 +41,12 @@ export type Operation = OperationSurface & {
    * type. The SDKs return the bytes, the CLI writes them out.
    */
   rawResponse?: string;
+  /**
+   * Answers one page of a list (`{ items, nextCursor }`): the SDKs page
+   * through it, and the CLI's `--all` follows it. A list that takes a
+   * `cursor` field has more pages; one without has a single page.
+   */
+  paginated?: boolean;
   /** Acts in a workspace (sends X-Workspace with a personal token). */
   workspace: boolean;
   /** Takes a workspace API key; otherwise a person's token (OpenAPI `security`). */
@@ -90,7 +96,10 @@ type Operations = Record<
       required?: boolean;
       content?: Record<string, { schema?: Schema }>;
     };
-    responses?: Record<string, { content?: Record<string, unknown> }>;
+    responses?: Record<
+      string,
+      { content?: Record<string, { schema?: Schema } | undefined> }
+    >;
   }
 >;
 type Document = {
@@ -259,6 +268,13 @@ export function buildOperations(document: Document): Operation[] {
       answerTypes.length > 0 && !answerTypes.includes("application/json")
         ? answerTypes[0]
         : undefined;
+    const answer = resolve(
+      document,
+      op.responses?.["200"]?.content?.["application/json"]?.schema,
+    );
+    const paginated =
+      resolve(document, answer.properties?.items).type === "array" &&
+      answer.properties?.nextCursor !== undefined;
     return {
       ...surface,
       description: op.description ?? surface.summary,
@@ -266,6 +282,7 @@ export function buildOperations(document: Document): Operation[] {
       hasBody: op.requestBody !== undefined && !rawBody,
       ...(rawBody ? { rawBody } : {}),
       ...(rawResponse ? { rawResponse } : {}),
+      ...(paginated ? { paginated: true } : {}),
       workspace: !(
         surface.path === "/user" || surface.path.startsWith("/user/")
       ),

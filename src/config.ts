@@ -8,23 +8,28 @@ import {
 import { join } from "node:path";
 
 import { brand } from "./brand/index.ts";
-import { DEFAULT_API } from "@reminix/sdk";
+import { BASE_URL_ENV, DEFAULT_BASE_URL } from "@reminix/sdk";
 
 import { tokenEnvVar } from "./cli.ts";
 
 /**
- * ~/.config/<name>/config.json — the API origin, the personal access token,
+ * ~/.config/<name>/config.json — the API origin (`baseURL`), the personal access token,
  * the default workspace and the default environment (the product's —
  * test, live …). Written 0600 (the directory 0700): the token is a
  * credential. The token may instead come from the shell (<NAME>_TOKEN),
  * which always wins — CI and scripts never write the file.
  */
 export type CliConfig = {
-  api?: string;
+  baseURL?: string;
   token?: string;
   workspace?: string;
   environment?: string;
 };
+
+/** The variable naming the API's origin: <NAME>_BASE_URL, as the SDK reads it. */
+export function baseURLEnvVar(): string {
+  return BASE_URL_ENV;
+}
 
 /** The variable naming the environment to act in (PLATFORM_ENVIRONMENT, LIMITRY_ENVIRONMENT, …). */
 export function environmentEnvVar(): string {
@@ -56,7 +61,10 @@ export function writeConfig(homeDir: string, config: CliConfig): void {
 }
 
 export type Settings = {
-  api: string;
+  /** The API's origin: `--base-url` over <NAME>_BASE_URL over the file. */
+  baseURL: string;
+  /** Where `baseURL` came from (null: the default). */
+  baseURLSource: "flag" | "env" | "config" | null;
   token: string | undefined;
   workspace: string | undefined;
   /**
@@ -69,11 +77,11 @@ export type Settings = {
   environmentSource: "flag" | "env" | "config" | null;
 };
 
-/** Effective settings: flag over shell variable over file over defaults (the API origin from @repo/sdk). */
+/** Effective settings: flag over shell variable over file over defaults (the API origin from @repo/typescript-sdk). */
 export function resolveSettings(
   env: Record<string, string | undefined>,
   homeDir: string,
-  flags: { environment?: string } = {},
+  flags: { environment?: string; baseUrl?: string } = {},
 ): Settings {
   const config = readConfig(homeDir);
   const environment: Pick<Settings, "environment" | "environmentSource"> =
@@ -86,9 +94,16 @@ export function resolveSettings(
           : { environment: undefined, environmentSource: null };
   return {
     ...environment,
-    api: withoutTrailingSlashes(
-      env[`${brand.identifier.toUpperCase()}_API`] ?? config.api ?? DEFAULT_API,
+    baseURL: withoutTrailingSlashes(
+      flags.baseUrl || env[BASE_URL_ENV] || config.baseURL || DEFAULT_BASE_URL,
     ),
+    baseURLSource: flags.baseUrl
+      ? "flag"
+      : env[BASE_URL_ENV]
+        ? "env"
+        : config.baseURL
+          ? "config"
+          : null,
     token: env[tokenEnvVar()] ?? config.token,
     workspace:
       env[`${brand.identifier.toUpperCase()}_WORKSPACE`] ?? config.workspace,

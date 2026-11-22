@@ -6,7 +6,7 @@
  * (docs/conventions.md, "Fork-owned seams").
  *
  * A command is a function `(program, ctx) => void` that registers itself
- * with commander; `ctx.client()` is the typed API client from @repo/sdk
+ * with commander; `ctx.client()` is the typed API client from @repo/typescript-sdk
  * (generated from the /v1 routes, so a product's own endpoints are typed
  * once `pnpm sdk:generate` has run) and `ctx.io` prints:
  *
@@ -40,3 +40,5 @@ export const productCommands: Command[] = [
   fileCommands,
   secretCommands,
 ];
+
+export { productErrorHint } from "./access.ts";

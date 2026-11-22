@@ -258,7 +258,9 @@ describe("publish", () => {
     );
     expect(short.routes()).toEqual(long.routes());
     expect(short.out).toEqual(long.out);
-    expect(short.out).toEqual(["Published refund-customer version 3."]);
+    expect(short.out).toEqual([
+      `Published refund-customer version 3: https://app.${brand.domain}/scripts/refund-customer`,
+    ]);
   });
 
   it("`upload` uploads a draft, and publishes nothing", async () => {
@@ -278,7 +280,7 @@ describe("publish", () => {
     // `publish --draft` is gone: `upload` is the draft.
     expect(
       await run(["publish", dir, "--draft", "--workspace", "acme"], t.io),
-    ).toBe(1);
+    ).toBe(2);
   });
 
   it("says publishing waits when the workspace requires a person's approval", async () => {
@@ -297,8 +299,8 @@ describe("publish", () => {
     const t = publishTerminal();
     expect(await run(["publish", a, b, "--workspace", "acme"], t.io)).toBe(0);
     expect(t.out).toEqual([
-      "Published monthly-report version 3.",
-      "Published nightly-sync version 3.",
+      `Published monthly-report version 3: https://app.${brand.domain}/scripts/monthly-report`,
+      `Published nightly-sync version 3: https://app.${brand.domain}/scripts/nightly-sync`,
     ]);
   });
 
@@ -355,8 +357,8 @@ describe("publish", () => {
     const t = publishTerminal({ failing: "b-broken" });
     expect(await run(["publish", root, "--workspace", "acme"], t.io)).toBe(1);
     expect(t.out).toEqual([
-      "Published a-first version 3.",
-      "Published c-last version 3.",
+      `Published a-first version 3: https://app.${brand.domain}/scripts/a-first`,
+      `Published c-last version 3: https://app.${brand.domain}/scripts/c-last`,
     ]);
     expect(t.err).toContain(`${join(root, "b-broken")}: Bad manifest`);
     expect(t.err.at(-1)).toBe(
@@ -388,6 +390,28 @@ describe("publish", () => {
     expect(t.out.join("\n")).toContain("Node script (sync.mjs)");
   });
 
+  it("says how to add inputs when the code reads arguments but has none", async () => {
+    const t = publishTerminal();
+    const dir = join(mkdtempSync(join(tmpdir(), "cap-")), "unlock_account");
+    mkdirSync(dir);
+    writeFileSync(join(dir, "unlock.py"), "import sys\nprint(sys.argv[1])\n");
+    expect(await run(["publish", dir, "--workspace", "acme"], t.io)).toBe(0);
+    const out = t.out.join("\n");
+    expect(out).toContain(
+      "unlock.py reads command-line arguments, but this script has no inputs yet",
+    );
+    expect(out).toContain(`${brand.name} init "python unlock.py {input}"`);
+  });
+
+  it("gives no inputs hint for code that reads no arguments", async () => {
+    const t = publishTerminal();
+    const dir = join(mkdtempSync(join(tmpdir(), "cap-")), "nightly_sync");
+    mkdirSync(dir);
+    writeFileSync(join(dir, "sync.py"), "print(1)\n");
+    expect(await run(["publish", dir, "--workspace", "acme"], t.io)).toBe(0);
+    expect(t.out.join("\n")).not.toContain("reads command-line arguments");
+  });
+
   it("publishes the version you tested with --number, uploading nothing", async () => {
     const t = publishTerminal();
     const dir = mkdtempSync(join(tmpdir(), "cap-"));
@@ -410,7 +434,9 @@ describe("publish", () => {
     expect(t.calls.map((c) => `${c.method} ${c.path}`)).toEqual([
       "POST /v1/scripts/report/versions/2/publish",
     ]);
-    expect(t.out.join("\n")).toContain("Published report version 2.");
+    expect(t.out.join("\n")).toContain(
+      `Published report version 2: https://app.${brand.domain}/scripts/report`,
+    );
     // `upload` has no --number: it always uploads.
     const bad = publishTerminal();
     expect(
@@ -418,7 +444,7 @@ describe("publish", () => {
         ["upload", dir, "--number", "2", "--workspace", "acme"],
         bad.io,
       ),
-    ).toBe(1);
+    ).toBe(2);
     expect(bad.calls).toEqual([]);
   });
 
@@ -483,8 +509,8 @@ describe("scripts run", () => {
         "scripts",
         "run",
         "refund-customer",
-        "--input",
-        '{"orderId":"o_1"}',
+        "-f",
+        "orderId=o_1",
         "--log",
         "--workspace",
         "acme",
@@ -501,6 +527,56 @@ describe("scripts run", () => {
     expect(t.err).toEqual(["one", "two"]);
   });
 
+  it("takes inputs as gh api takes fields: -F typed, -f strings, --input-file", async () => {
+    const t = terminal({
+      id: "run_1",
+      status: "succeeded",
+      output: 1,
+      error: null,
+    });
+    const dir = mkdtempSync(join(tmpdir(), "inputs-"));
+    writeFileSync(join(dir, "in.json"), '{"orderId":"o_1","amount":5}');
+    expect(
+      await run(
+        [
+          "run",
+          "refund",
+          "--input-file",
+          join(dir, "in.json"),
+          "-F",
+          "amount=40",
+          "-F",
+          "notify=true",
+          "-f",
+          "reason=42",
+          "--workspace",
+          "acme",
+        ],
+        t.io,
+      ),
+    ).toBe(0);
+    expect(t.calls[0]?.body).toEqual({
+      inputs: { orderId: "o_1", amount: 40, notify: true, reason: "42" },
+      via: "cli",
+    });
+    const bad = terminal({});
+    writeFileSync(join(dir, "list.json"), "[1]");
+    expect(
+      await run(
+        [
+          "run",
+          "refund",
+          "--input-file",
+          join(dir, "list.json"),
+          "--workspace",
+          "acme",
+        ],
+        bad.io,
+      ),
+    ).toBe(2);
+    expect(bad.calls).toEqual([]);
+  });
+
   it("is the same command as `run`: same calls, same output", async () => {
     const succeeded = {
       id: "run_1",
@@ -508,7 +584,7 @@ describe("scripts run", () => {
       output: { ok: true },
       error: null,
     };
-    const args = ["refund-customer", "--input", '{"orderId":"o_1"}', "--log"];
+    const args = ["refund-customer", "-f", "orderId=o_1", "--log"];
     const long = terminal(succeeded);
     const short = terminal(succeeded);
     expect(
@@ -582,6 +658,50 @@ describe("scripts run", () => {
     expect(t.out).toEqual(["Run run_5 is awaiting_approval."]);
   });
 
+  it("--text gives a long text input a file's lines, or standard input's", async () => {
+    const t = terminal({ id: "run_6", status: "succeeded", output: "ok" });
+    t.io.stdin = async () => "Second\nnote\n";
+    const dir = mkdtempSync(join(tmpdir(), "cap-text-"));
+    writeFileSync(
+      join(dir, "reply.txt"),
+      "Hi Jane,\n\nYour refund is on its way.\n",
+    );
+    expect(
+      await run(
+        [
+          "run",
+          "reply",
+          "-f",
+          "orderId=o_1",
+          "--text",
+          `message=${join(dir, "reply.txt")}`,
+          "--text",
+          "note=-",
+          "--workspace",
+          "acme",
+        ],
+        t.io,
+      ),
+    ).toBe(0);
+    expect(t.calls[0]?.body).toEqual({
+      inputs: {
+        orderId: "o_1",
+        message: "Hi Jane,\n\nYour refund is on its way.\n",
+        note: "Second\nnote\n",
+      },
+      via: "cli",
+    });
+    const bad = terminal({});
+    expect(
+      await run(
+        ["run", "reply", "--text", "message", "--workspace", "acme"],
+        bad.io,
+      ),
+    ).not.toBe(0);
+    expect(bad.err.join("\n")).toContain("--text: input=path");
+    expect(bad.calls).toEqual([]);
+  });
+
   it("fails on a failed run and on inputs that are not a JSON object", async () => {
     const failed = terminal({
       id: "run_2",
@@ -596,10 +716,10 @@ describe("scripts run", () => {
     const bad = terminal({});
     expect(
       await run(
-        ["scripts", "run", "x", "--input", "[1]", "--workspace", "acme"],
+        ["scripts", "run", "x", "-F", "nameless", "--workspace", "acme"],
         bad.io,
       ),
-    ).not.toBe(0);
+    ).toBe(2);
     expect(bad.calls).toEqual([]);
   });
 });

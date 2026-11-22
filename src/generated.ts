@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from "node:fs";
 
-import { ApiError } from "@reminix/sdk";
+import { apiErrorFrom } from "@reminix/sdk";
 import {
   OPERATIONS,
   operationRequest,
@@ -11,16 +11,25 @@ import type { Command as Commander } from "commander";
 
 import type { CliContext, Command } from "./cli.ts";
 import { coveredOperations, markOperation } from "./covers.ts";
+import { UsageError } from "./errors.ts";
+import {
+  fieldFlag,
+  kebab as flag,
+  optionKey,
+  type FieldFlag,
+} from "./flags.ts";
 import { json, table } from "./output.ts";
 
 /**
  * A command for EVERY /v1 operation, built from the operation table
- * (@repo/sdk/operations — generated from the OpenAPI document at build,
+ * (@repo/typescript-sdk/operations — generated from the OpenAPI document at build,
  * deterministic, never by a model). `audit-events list`,
  * `webhook-endpoints create --url …`: path parameters are positional
- * arguments, query and body fields are flags (`--data '{…}'` for a whole
- * body), every command takes `--json`, writes send an Idempotency-Key, and
- * a confirming operation (DELETE) needs `--yes`. Registered AFTER the
+ * arguments, query and body fields are flags (./flags.ts: a list is a
+ * repeatable flag, a boolean `--x` / `--no-x`, a nullable field
+ * `--clear-<field>`; `--data '{…}'` for a whole body), every command
+ * takes `--json`, a list takes `--all` for every page, writes send an
+ * Idempotency-Key, and a confirming operation (DELETE) needs `--yes`. Registered AFTER the
  * hand-written commands and a product's own (./product): a command of the
  * same name there replaces the generated one.
  */
@@ -51,14 +60,17 @@ export const generatedCommands: Command = (program, ctx) => {
 // that name goes in --data.
 const RESERVED = new Set(["json", "yes", "workspace", "data", "environment"]);
 
-function flag(name: string): string {
-  return name.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
-}
+/** A field and its flag (./flags.ts). */
+type Flagged = { field: OperationField; spec: FieldFlag };
 
-/** commander's camelCase key for a --kebab-case option. */
-function optionKey(name: string): string {
-  return flag(name).replace(/-([a-z0-9])/g, (_, c: string) => c.toUpperCase());
-}
+/** A list's values: repeated and comma-separated alike. */
+const collect = (value: string, previous: string[] | undefined) => [
+  ...(previous ?? []),
+  ...value
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean),
+];
 
 function register(
   program: Commander,
@@ -87,28 +99,45 @@ function register(
   }
 
   const positional = new Set(op.cli.args);
-  const flags = op.fields.filter(
+  const fields = op.fields.filter(
     (field) => !positional.has(field.name) && !RESERVED.has(field.name),
   );
+  const names = new Set(fields.map((field) => flag(field.name)));
+  const flags: Flagged[] = fields.map((field) => ({
+    field,
+    spec: fieldFlag(field, names),
+  }));
   const command = parent
     .command(action, { hidden })
     .description(op.summary)
     .addHelpText("after", `\n${op.description}`);
   markOperation(command, op.operationId);
   for (const arg of op.cli.args) command.argument(`<${flag(arg)}>`);
-  for (const field of flags) {
+  for (const { field, spec } of flags) {
     const description = [
       field.description ?? `${field.in} field`,
+      spec.kind === "list" ? "Repeat it for each value." : "",
       field.required ? "(required)" : "",
     ]
       .filter(Boolean)
       .join(" ");
-    command.option(
-      field.type === "boolean"
-        ? `--${flag(field.name)}`
-        : `--${flag(field.name)} <${field.type === "json" ? "json" : "value"}>`,
-      description,
-    );
+    if (spec.kind === "boolean") {
+      command.option(`--${spec.name}`, description);
+      command.option(`--no-${spec.name}`, `turn --${spec.name} off`);
+    } else if (spec.kind === "list") {
+      command.option(`--${spec.name} <value>`, description, collect);
+    } else {
+      command.option(
+        `--${spec.name} <${spec.kind === "json" ? "json" : "value"}>`,
+        description,
+      );
+    }
+    if (spec.clear) {
+      command.option(`--clear-${spec.clear}`, `set ${field.name} to null`);
+    }
+  }
+  if (op.paginated) {
+    command.option("--all", "every page, not just the first");
   }
   if (op.hasBody) command.option("--data <json>", "the whole JSON body");
   if (op.rawBody) command.requiredOption("--file <path>", "the file to send");
@@ -126,7 +155,7 @@ function register(
     const values = input.slice(0, op.cli.args.length) as string[];
     const options = input[op.cli.args.length] as Record<string, unknown>;
     if (op.cli.confirm && !options.yes) {
-      throw new Error(
+      throw new UsageError(
         `${op.summary} cannot be undone. Run it again with --yes to confirm.`,
       );
     }
@@ -147,18 +176,26 @@ function register(
   });
 }
 
-function coerce(field: OperationField, raw: unknown): unknown {
-  if (field.type === "number") {
-    const n = Number(raw);
-    if (Number.isNaN(n))
-      throw new Error(`--${flag(field.name)} must be a number`);
-    return n;
+function number(name: string, raw: unknown): number {
+  const n = Number(raw);
+  if (raw === "" || Number.isNaN(n)) {
+    throw new UsageError(`--${name} must be a number`);
   }
+  return n;
+}
+
+function coerce({ field, spec }: Flagged, raw: unknown): unknown {
+  if (spec.kind === "list") {
+    const values = raw as string[];
+    return spec.numbers ? values.map((v) => number(spec.name, v)) : values;
+  }
+  if (spec.kind === "boolean") return raw === true;
+  if (field.type === "number") return number(spec.name, raw);
   if (field.type === "json") {
     try {
       return JSON.parse(String(raw));
     } catch {
-      throw new Error(`--${flag(field.name)} must be JSON`);
+      throw new UsageError(`--${spec.name} must be JSON`);
     }
   }
   return raw;
@@ -169,46 +206,98 @@ async function call(
   op: Operation,
   args: Record<string, string>,
   options: Record<string, unknown>,
-  flags: OperationField[],
+  flags: Flagged[],
 ): Promise<unknown> {
-  const { api, token, workspace, environment } = ctx.credentials({
-    workspace: op.workspace
-      ? ((options.workspace as string | undefined) ?? undefined)
-      : false,
-  });
-  const values = (field: OperationField) =>
-    field.in === "path" || op.cli.args.includes(field.name)
-      ? args[field.name]
-      : options[optionKey(field.name)];
-
   let whole: Record<string, unknown> = {};
   if (op.hasBody && options.data) {
     try {
       whole = JSON.parse(String(options.data)) as Record<string, unknown>;
     } catch {
-      throw new Error("--data must be a JSON object");
+      throw new UsageError("--data must be a JSON object");
     }
   }
+  // Positional arguments and path fields as typed; flags coerced.
   const input: Record<string, unknown> = {};
   for (const field of op.fields) {
-    const raw = values(field);
-    if (raw === undefined) continue;
-    input[field.name] = field.in === "body" ? coerce(field, raw) : raw;
+    if (field.in === "path" || op.cli.args.includes(field.name)) {
+      if (args[field.name] !== undefined) input[field.name] = args[field.name];
+    }
+  }
+  for (const flagged of flags) {
+    const { field, spec } = flagged;
+    const raw = options[optionKey(spec.name)];
+    const clear = spec.clear && options[optionKey(`clear-${spec.clear}`)];
+    if (clear && raw !== undefined) {
+      throw new UsageError(
+        `pass --${spec.name} or --clear-${spec.clear}, not both`,
+      );
+    }
+    if (clear) input[field.name] = null;
+    else if (raw !== undefined) {
+      input[field.name] =
+        field.in === "body" || spec.kind !== "value"
+          ? coerce(flagged, raw)
+          : raw;
+    }
   }
   const missing = flags.filter(
-    (field) =>
+    ({ field }) =>
       field.required &&
       input[field.name] === undefined &&
       (field.in !== "body" || whole[field.name] === undefined),
   );
   if (missing.length > 0) {
-    throw new Error(
-      `missing ${missing.map((f) => `--${flag(f.name)}`).join(", ")}`,
+    throw new UsageError(
+      `missing ${missing.map(({ spec }) => `--${spec.name}`).join(", ")}`,
     );
   }
   const problem = variantProblem(op, input, whole);
-  if (problem) throw new Error(problem);
-  const request = operationRequest(op, input, whole);
+  if (problem) throw new UsageError(problem);
+  const credentials = ctx.credentials({
+    workspace: op.workspace
+      ? ((options.workspace as string | undefined) ?? undefined)
+      : false,
+  });
+  if (op.paginated && options.all === true) {
+    // Every page: the same call with each page's nextCursor, the rows
+    // together in one answer of the same shape.
+    const paged = op.fields.some(
+      (f) => f.in === "query" && f.name === "cursor",
+    );
+    const items: unknown[] = [];
+    let cursor = input.cursor;
+    for (;;) {
+      const page = (await send(
+        ctx,
+        op,
+        credentials,
+        operationRequest(op, { ...input, cursor }, whole),
+        options,
+      )) as { items: unknown[]; nextCursor: string | null };
+      items.push(...page.items);
+      if (!paged || typeof page.nextCursor !== "string") break;
+      cursor = page.nextCursor;
+    }
+    return { items, nextCursor: null };
+  }
+  return send(
+    ctx,
+    op,
+    credentials,
+    operationRequest(op, input, whole),
+    options,
+  );
+}
+
+/** Sends one request of the operation; its data, or throws its APIError. */
+async function send(
+  ctx: CliContext,
+  op: Operation,
+  credentials: ReturnType<CliContext["credentials"]>,
+  request: ReturnType<typeof operationRequest>,
+  options: Record<string, unknown>,
+): Promise<unknown> {
+  const { baseURL, token, workspace, environment } = credentials;
 
   const headers: Record<string, string> = {
     authorization: `Bearer ${token}`,
@@ -220,7 +309,7 @@ async function call(
   const raw = op.rawBody ? readFileSync(String(options.file)) : undefined;
   if (op.rawBody) headers["content-type"] = op.rawBody;
   const response = await ctx.fetch(
-    new Request(`${api}/v1${request.path}`, {
+    new Request(`${baseURL}/v1${request.path}`, {
       method: request.method,
       headers,
       ...(request.body ? { body: JSON.stringify(request.body) } : {}),
@@ -231,16 +320,14 @@ async function call(
     return new Uint8Array(await response.arrayBuffer());
   }
   const text = await response.text();
-  const data: unknown = text ? JSON.parse(text) : null;
-  if (!response.ok) {
-    const error = (data as { error?: Record<string, string> } | null)?.error;
-    throw new ApiError(
-      response.status,
-      error?.code ?? "internal_error",
-      error?.message ?? `HTTP ${response.status}`,
-      error?.requestId,
-    );
+  let data: unknown = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    if (response.ok) throw new Error("the API's answer is not JSON");
   }
+  // The SDK's errors, a class per status (@repo/typescript-sdk).
+  if (!response.ok) throw apiErrorFrom(data, response);
   return data;
 }
 
@@ -268,7 +355,9 @@ function print(ctx: CliContext, data: unknown, asJson: boolean) {
       rows.length === 0 ? "No results." : table(rows, scalarColumns(rows)),
     );
     if (typeof page.nextCursor === "string") {
-      ctx.io.stdout(`More: --cursor ${page.nextCursor}`);
+      ctx.io.stdout(
+        `More: --cursor ${page.nextCursor}, or --all for every page`,
+      );
     }
     return;
   }

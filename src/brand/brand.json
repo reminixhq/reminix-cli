@@ -11,6 +11,16 @@
   "labs": ["lab"],
   "statusPage": true,
   "discordInvite": "https://discord.gg/UU9NbEcNQj",
+  "shortLinks": {
+    "/li": { "source": "linkedin", "medium": "social" },
+    "/yt": { "source": "youtube", "medium": "video" },
+    "/pycoders": { "source": "pycoders", "medium": "newsletter" },
+    "/nodeweekly": { "source": "nodeweekly", "medium": "newsletter" },
+    "/mcp": { "source": "mcp-registry", "medium": "directory" },
+    "/plugins": { "source": "claude-plugins", "medium": "directory" },
+    "/gh": { "source": "github", "medium": "referral" },
+    "/dc": { "source": "discord", "medium": "community" }
+  },
   "profiles": { "x": "reminixhq", "github": "reminixhq" },
   "summary": "Reminix turns your scripts into internal tools. Upload a Python, shell or Node script, and Reminix runs it from a form, the API, the CLI or your AI agents, on a schedule or from a webhook. Keys stay out of the code, and every run is on record.",
   "expectedAssets": [
@@ -68,5 +78,10 @@
     "providerOrder": ["github", "google"],
     "emailSignUp": "button"
   },
-  "devPortOffset": 200
+  "devPortOffset": 200,
+  "appShortcuts": [
+    { "name": "Approvals", "url": "/runs?status=awaiting_approval" },
+    { "name": "Notifications", "url": "/account/notifications" }
+  ],
+  "tagline": "Internal tools from your scripts"
 }

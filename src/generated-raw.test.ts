@@ -15,7 +15,8 @@ import { run, type Io } from "./cli.ts";
  * the same name would replace the generated one, as designed).
  */
 vi.mock("./sdk/operations.gen.ts", async (original) => {
-  const actual = await original<typeof import("./sdk/operations.gen.ts")>();
+  const actual =
+    await original<typeof import("./sdk/operations.gen.ts")>();
   const base = {
     tool: { name: "x", expose: true },
     workspace: true,

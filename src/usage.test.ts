@@ -70,10 +70,10 @@ function terminal() {
   return { io, out };
 }
 
-describe("workspace usage", () => {
+describe("workspace plan-usage get", () => {
   it("says each count's figures and where it stands, as the app does", async () => {
     const t = terminal();
-    expect(await run(["workspace", "usage"], t.io)).toBe(0);
+    expect(await run(["workspace", "plan-usage", "get"], t.io)).toBe(0);
     expect(t.out).toEqual([
       "Usage this period. Counters reset on Dec 1, 2026.",
       "Webhook deliveries: 12 (no limit).",
@@ -86,7 +86,9 @@ describe("workspace usage", () => {
 
   it("prints the API's response as it is with --json", async () => {
     const t = terminal();
-    expect(await run(["workspace", "usage", "--json"], t.io)).toBe(0);
+    expect(await run(["workspace", "plan-usage", "get", "--json"], t.io)).toBe(
+      0,
+    );
     expect(JSON.parse(t.out.join("\n"))).toEqual(body);
   });
 });

@@ -63,6 +63,7 @@ export type ManifestSignIn = {
 // Optional manifest fields (absent in the platform; a product may set them).
 const optional = manifest as typeof manifest & {
   summary?: string;
+  tagline?: string;
   legalName?: string;
   discordInvite?: string;
   /** The product's own accounts elsewhere: an X handle and a GitHub organisation (no @, no URL). */
@@ -146,6 +147,8 @@ export const brand = {
   }[],
   /** One sentence: what the product is — llms.txt and the agent skill lead with it. */
   summary: optional.summary ?? `${manifest.productName} documentation and API.`,
+  /** A short line under the logo in the site's footer (the home page's headline); none without it. */
+  tagline: optional.tagline,
   /** Where vulnerability reports go — /.well-known/security.txt and /security publish it. Defaults to security@<domain>. */
   securityContact: optional.securityContact ?? `security@${manifest.domain}`,
   /** Where the Contact form's help topics go (Question, Bug, Billing). Never shown on a page. Defaults to support@<domain>. */

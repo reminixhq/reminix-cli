@@ -36,7 +36,29 @@ export type Detected = {
 export type Detection =
   { ok: true; value: Detected } | { ok: false; error: string };
 
+/** What reads command-line arguments, by kind of script. */
+const READS_ARGUMENTS: Record<Detected["kind"], RegExp> = {
+  python: /\bsys\.argv\b|\bargparse\b|^\s*(?:import|from)\s+(?:click|typer)\b/m,
+  node: /\bprocess\.argv\b|\bparseArgs\b/,
+  shell: /\$\{?[1-9@*#]|\bgetopts\b/,
+};
+
+/**
+ * Whether a script's code reads command-line arguments. A script
+ * published without inputs that does gets no fields in its form, so
+ * publish says how to add them (the onboarding walkthrough, 2026-11-20:
+ * unlock.py read sys.argv[1], and its form said it took no inputs).
+ * A hint, never a refusal: the script may read an optional flag.
+ */
+export function readsArguments(kind: Detected["kind"], code: string): boolean {
+  return READS_ARGUMENTS[kind].test(code);
+}
+
 const SCRIPT = /\.(py|js|mjs|cjs|ts|mts|sh)$/i;
+
+/** Whether a file is a script's code (not a project file). */
+export const isScriptFile = (path: string) => SCRIPT.test(path);
+
 const NOT_A_SCRIPT =
   /(\.config\.|^setup\.py$|^conftest\.py$|\.d\.ts$|\.test\.|_test\.py$|^test_)/i;
 

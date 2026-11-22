@@ -1,5 +1,5 @@
 import { brand, productEnvironments, productFeatures } from "./brand/index.ts";
-import { DEFAULT_API, unwrap, type Schemas } from "@reminix/sdk";
+import { DEFAULT_BASE_URL, unwrap, type Schemas } from "@reminix/sdk";
 
 import { browserLogin, webOriginFor } from "./browser-login.ts";
 import type { CliContext, Command } from "./cli.ts";
@@ -10,6 +10,7 @@ import {
   readConfig,
   writeConfig,
 } from "./config.ts";
+import { UsageError } from "./errors.ts";
 import { rawRequest } from "./http.ts";
 import { json, table } from "./output.ts";
 import { approvals } from "./approvals.ts";
@@ -21,15 +22,17 @@ async function me(ctx: CliContext): Promise<Schemas["UserMe"]> {
 
 /**
  * Verifies a token against the API before keeping it (a mistyped token
- * or --api must not stay saved: write, check, roll back), then greets.
+ * or --base-url must not stay saved: write, check, roll back), then
+ * greets. A `--base-url` given to login is saved with the token.
  */
-async function saveToken(ctx: CliContext, token: string, api?: string) {
+async function saveToken(ctx: CliContext, token: string) {
+  const { baseURL, baseURLSource } = ctx.settings();
   if (!token.startsWith(`pat_${brand.identifier}_`)) {
     throw new Error(`that is not a ${brand.productName} personal access token`);
   }
   const previous = readConfig(ctx.io.homeDir);
   const config = { ...previous, token };
-  if (api) config.api = api;
+  if (baseURLSource === "flag") config.baseURL = baseURL;
   writeConfig(ctx.io.homeDir, config);
   let user: Awaited<ReturnType<typeof me>>;
   try {
@@ -64,9 +67,12 @@ const login: Command = (program, ctx) => {
       "Sign in through the browser, or store a personal access token with --token",
     )
     .option("--token <pat>", "a personal access token (CI, servers)")
-    .option("--api <origin>", `API origin (default ${DEFAULT_API})`)
     .option("--web <origin>", "web app origin for the browser sign-in")
-    .action(async (options: { token?: string; api?: string; web?: string }) => {
+    .addHelpText(
+      "after",
+      `\nThe global --base-url signs in to another API (default ${DEFAULT_BASE_URL}), and is saved for later commands.`,
+    )
+    .action(async (options: { token?: string; web?: string }) => {
       // A product without personal tokens (brand.json features) has
       // nothing this CLI could sign in with.
       if (!productFeatures.personalTokens) {
@@ -75,7 +81,7 @@ const login: Command = (program, ctx) => {
         );
       }
       if (options.token) {
-        await saveToken(ctx, options.token, options.api);
+        await saveToken(ctx, options.token);
         return;
       }
       // Not a person at a terminal (CI, a pipe): read the token from stdin.
@@ -83,11 +89,11 @@ const login: Command = (program, ctx) => {
         ctx.io.stderr(
           `Paste a personal access token (Account → Personal access tokens in ${brand.productName}), then Enter:`,
         );
-        await saveToken(ctx, (await ctx.io.stdin()).trim(), options.api);
+        await saveToken(ctx, (await ctx.io.stdin()).trim());
         return;
       }
       // A person: sign in through the browser (./browser-login.ts).
-      const api = options.api ?? ctx.settings().api;
+      const api = ctx.settings().baseURL;
       const webOrigin = options.web ?? webOriginFor(api);
       if (!webOrigin) {
         throw new Error(
@@ -103,7 +109,7 @@ const login: Command = (program, ctx) => {
             `Opening your browser to sign in. If it does not open, visit:\n  ${url}`,
           ),
       });
-      await saveToken(ctx, token, options.api);
+      await saveToken(ctx, token);
     });
 };
 
@@ -115,9 +121,10 @@ const logout: Command = (program, ctx) => {
       const config = readConfig(ctx.io.homeDir);
       if (config.token) {
         // Revoke it server-side too; an already-invalid token is fine.
-        const revoked = await ctx.io
+        // ctx.fetch: a write, keyed (and --idempotency-key honoured).
+        const revoked = await ctx
           .fetch(
-            new Request(`${ctx.settings().api}/v1/user/token`, {
+            new Request(`${ctx.settings().baseURL}/v1/user/token`, {
               method: "DELETE",
               headers: { authorization: `Bearer ${config.token}` },
             }),
@@ -267,12 +274,19 @@ const api: Command = (program, ctx) => {
         options: { data?: string; workspace?: string },
       ) => {
         if (!path.startsWith("/")) {
-          throw new Error("usage: api <method> </v1/...> [--data '<json>']");
+          throw new UsageError(
+            "usage: api <method> </v1/...> [--data '<json>']",
+          );
         }
-        const body =
-          options.data === undefined
-            ? undefined
-            : (JSON.parse(options.data) as unknown);
+        let body: unknown;
+        try {
+          body =
+            options.data === undefined
+              ? undefined
+              : (JSON.parse(options.data) as unknown);
+        } catch {
+          throw new UsageError("--data must be JSON");
+        }
         ctx.io.stdout(
           json(
             await rawRequest(ctx, {
@@ -295,8 +309,8 @@ const config: Command = (program, ctx) => {
       const settings = ctx.settings();
       ctx.io.stdout(
         json({
-          api: settings.api,
-          apiDefault: DEFAULT_API,
+          baseURL: settings.baseURL,
+          baseURLDefault: DEFAULT_BASE_URL,
           token: settings.token ? `${settings.token.slice(0, 12)}…` : null,
           tokenSource: ctx.io.env[tokenEnvVar()]
             ? tokenEnvVar()

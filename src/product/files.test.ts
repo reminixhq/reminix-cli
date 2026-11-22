@@ -80,7 +80,7 @@ describe("scripts run with files", () => {
           ],
         });
       }
-      if (path === "/v1/files/file_out/download") {
+      if (path === "/v1/files/file_out/content") {
         return new Response("OFX", {
           headers: { "content-type": "application/x-ofx" },
         });
@@ -92,8 +92,8 @@ describe("scripts run with files", () => {
         "scripts",
         "run",
         "convert",
-        "--input",
-        '{"account":"acme"}',
+        "-f",
+        "account=acme",
         "--file",
         `statement=${join(dir, "sept.csv")}`,
         "--file",
@@ -179,7 +179,7 @@ describe("files", () => {
   it("download --json prints the file and where it saved it", async () => {
     const out = join(mkdtempSync(join(tmpdir(), "files-")), "got.csv");
     const t = terminal((_request, path) =>
-      path === "/v1/files/file_7/download"
+      path === "/v1/files/file_7/content"
         ? new Response("a,b\n")
         : Response.json(file("file_7", "sept.csv", "input")),
     );

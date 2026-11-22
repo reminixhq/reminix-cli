@@ -34,7 +34,7 @@ export async function rawRequest(
   return unwrap(
     await client.request(options.method, options.path, {
       // The client's base URL ends in /v1; the path given here is absolute.
-      baseUrl: ctx.credentials({ workspace }).api,
+      baseUrl: ctx.credentials({ workspace }).baseURL,
       body: options.body,
     }),
   );

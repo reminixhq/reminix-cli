@@ -45,7 +45,7 @@ export async function downloadBytes(
 ): Promise<Uint8Array> {
   const result = await ctx
     .client({ workspace })
-    .GET("/files/{fileId}/download", {
+    .GET("/files/{fileId}/content", {
       params: { path: { fileId: id } },
       parseAs: "arrayBuffer",
     });

@@ -4,11 +4,11 @@ import { unwrap, type Schemas } from "@reminix/sdk";
 import type { Command } from "./cli.ts";
 import { json } from "./output.ts";
 
-type Usage = Schemas["WorkspaceUsage"];
+type Usage = Schemas["PlanUsage"];
 
 /**
- * `workspace usage` — hand-written over the generated command of the
- * same name so each count reads as a sentence, with where it stands
+ * `workspace plan-usage get` — hand-written over the generated command of
+ * the same name so each count reads as a sentence, with where it stands
  * (docs/architecture.md "Workspace usage"): the same words as the app's
  * Billing card. `--json` prints the API's response as it is.
  */
@@ -16,8 +16,13 @@ export const usage: Command = (program, ctx) => {
   const workspace =
     program.commands.find((c) => c.name() === "workspace") ??
     program.command("workspace");
-  workspace
-    .command("usage")
+  const planUsage =
+    workspace.commands.find((c) => c.name() === "plan-usage") ??
+    workspace
+      .command("plan-usage")
+      .description("Your plan's usage this period");
+  planUsage
+    .command("get")
     .description("Show your plan's usage this period")
     .option("--workspace <slug>", "act in this workspace for one call")
     .option("--json", "machine-readable output")
@@ -25,7 +30,7 @@ export const usage: Command = (program, ctx) => {
       const result = unwrap(
         await ctx
           .client({ workspace: options.workspace })
-          .GET("/workspace/usage"),
+          .GET("/workspace/plan-usage"),
       );
       if (options.json) {
         ctx.io.stdout(json(result));

@@ -22,8 +22,8 @@ Or run it without installing: `npx @reminix/cli --help`.
 reminix login
 ```
 
-Your browser opens: sign in, choose the workspaces the CLI may use, and
-click **Allow**. On a server or in CI, set `REMINIX_TOKEN` to a personal
+Your browser opens: sign in, choose the workspaces the CLI may use, keep
+the access at **Publish and run scripts**, and click **Allow**. On a server or in CI, set `REMINIX_TOKEN` to a personal
 access token instead.
 
 ## Publish a script and run it
@@ -40,7 +40,7 @@ Then anyone on the team can run it from the app's form, through the
 API, as an agent tool, or here:
 
 ```bash
-reminix run monthly-report --input '{"month":"2026-09"}' --out ./reports
+reminix run monthly-report -f month=2026-09 --out ./reports
 ```
 
 ## Everything else
