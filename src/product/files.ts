@@ -92,7 +92,7 @@ export async function downloadSavedFiles(
 export const fileCommands: Command = (program, ctx) => {
   const group =
     program.commands.find((c) => c.name() === "files") ??
-    program.command("files").description("files commands");
+    program.command("files").description("Upload, download and list run files");
 
   group
     .command("upload <path>")

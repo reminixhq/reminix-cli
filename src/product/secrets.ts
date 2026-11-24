@@ -23,7 +23,7 @@ import { json } from "../output.ts";
 export const secretCommands: Command = (program, ctx) => {
   const group =
     program.commands.find((c) => c.name() === "secrets") ??
-    program.command("secrets").description("secrets commands");
+    program.command("secrets").description("Save, read and delete secrets");
   covers(
     group
       .command("set <name>")

@@ -2,6 +2,25 @@
 
 What changed in the Reminix CLI (`@reminix/cli`). Generated from the source on each release; newest first.
 
+## 1.0.0-rc.18 (2026-11-24)
+
+### Changed
+
+- The dashboard's runs card is now called Recent runs, and a run that
+  finished says Succeeded, as it does everywhere else in the app. A run
+  started by a schedule or a trigger says so, instead of naming the
+  person who set it up.
+
+  The Pricing page now says what Enterprise adds beyond Business: more
+  environments, longer run logs and more file storage. It also says you
+  can add a tax ID, such as a VAT number, at checkout.
+
+  The CLI's command groups now say what each one does. Run
+  `reminix --help` to see them.
+
+  The Security page and the Privacy policy now list Limitry, which
+  Reminix uses to count each workspace's runs.
+
 ## 1.0.0-rc.17 (2026-11-24)
 
 No user-facing changes.

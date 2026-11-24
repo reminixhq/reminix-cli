@@ -785,7 +785,7 @@ const defineRun: Define = (command, ctx) =>
 export const scriptCommands: Command = (program, ctx) => {
   const group =
     program.commands.find((c) => c.name() === "scripts") ??
-    program.command("scripts").description("scripts commands");
+    program.command("scripts").description("Publish, run and manage scripts");
   // `publish` does the job of creating a script, uploading a version and
   // publishing it, and `upload` of the first two, so their generated
   // commands are hidden.
