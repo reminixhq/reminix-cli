@@ -132,10 +132,7 @@ function build(io: Io) {
         "\nExit codes: 0 success, 1 failure, 2 wrong usage, 4 not logged in.",
     )
     .option("--base-url <url>", "the API's origin, without /v1")
-    .option(
-      "--environment <name>",
-      "act in this environment (where the product has them)",
-    )
+    .option("--environment <name>", "act in this environment")
     .option(
       "--idempotency-key <key>",
       "run again with the same key and its writes happen once",

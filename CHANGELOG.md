@@ -2,6 +2,10 @@
 
 What changed in the Reminix CLI (`@reminix/cli`). Generated from the source on each release; newest first.
 
+## 1.0.0-rc.17 (2026-11-24)
+
+No user-facing changes.
+
 ## 1.0.0-rc.16 (2026-11-22)
 
 No user-facing changes.
@@ -30,8 +34,8 @@ No user-facing changes.
   them for you.
 
   Each run gets its own isolated machine. Your keys stay out of the code:
-  Reminix adds each one only to the hosts you allow, and the script never
-  sees it.
+  Reminix adds each one only to the hosts you allow, and the script reads
+  one only if you let it.
 
   Where a run needs a person's yes, Reminix asks for it before the run
   starts. Every run is on record, with its inputs, its output and who

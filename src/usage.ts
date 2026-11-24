@@ -42,6 +42,15 @@ export const usage: Command = (program, ctx) => {
 
 const number = (n: number) => n.toLocaleString("en-US");
 
+/** "$28", "$12.50": cents, as the Billing page says them. */
+function dollars(cents: number): string {
+  const value = cents / 100;
+  return `$${value.toLocaleString("en-US", {
+    minimumFractionDigits: Number.isInteger(value) ? 0 : 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
 /** The readable output: when it resets, then a line per count, then the notices. */
 export function usageLines(usage: Usage): string[] {
   const resets = new Date(usage.periodEnd).toLocaleDateString("en-US", {
@@ -57,18 +66,23 @@ export function usageLines(usage: Usage): string[] {
       count.limit === null
         ? `${number(count.used)} (no limit)`
         : `${number(count.used)} of ${number(count.limit)}`;
+    const extras = count.overage;
     const state =
-      count.state === "grace"
-        ? count.stopsAt === null
-          ? " Over your plan."
-          : ` Over your plan. Past ${number(count.stopsAt)}, ${brand.productName} refuses new use.`
-        : count.state === "stopped"
-          ? ` ${brand.productName} refuses new use until ${resets}.`
-          : count.state === "over"
-            ? " Over your plan."
-            : count.limit === 0
-              ? " Not in your plan."
-              : "";
+      count.state === "overage" && extras
+        ? ` Past your plan. ${extras.label}: ${dollars(extras.costCents)} of your ${dollars(extras.capCents)} spend cap.`
+        : count.state === "stopped" && extras
+          ? ` You reached your spend cap. ${brand.productName} refuses new use until ${resets}.`
+          : count.state === "grace"
+            ? count.stopsAt === null
+              ? " Over your plan."
+              : ` Over your plan. Past ${number(count.stopsAt)}, ${brand.productName} refuses new use.`
+            : count.state === "stopped"
+              ? ` ${brand.productName} refuses new use until ${resets}.`
+              : count.state === "over"
+                ? " Over your plan."
+                : count.limit === 0
+                  ? " Not in your plan."
+                  : "";
     lines.push(`${count.label}: ${figures}.${state}`);
   }
   for (const notice of usage.notices ?? []) lines.push(notice);

@@ -233,6 +233,37 @@ describe("generated commands (one per /v1 operation)", () => {
     });
   });
 
+  it("prints a suspended workspace's refusal with its docs link, and no sign-in hint", async () => {
+    const suspended = terminal(() =>
+      Response.json(
+        {
+          error: {
+            code: "workspace_suspended",
+            message:
+              "This workspace is suspended. To find out why, write to support@example.com.",
+            requestId: "r2",
+            docs: "https://example.com/docs/errors/#workspace_suspended",
+          },
+        },
+        { status: 403 },
+      ),
+    );
+    expect(
+      await run(
+        ["workspace", "webhook-endpoints", "list", "--workspace", "acme"],
+        suspended.io,
+      ),
+    ).toBe(1);
+    const printed = suspended.err.join("\n");
+    expect(printed).toContain(
+      "This workspace is suspended. To find out why, write to support@example.com.",
+    );
+    expect(printed).toContain(
+      "See https://example.com/docs/errors/#workspace_suspended",
+    );
+    expect(printed).not.toContain("Sign in again");
+  });
+
   it("take a list as a repeatable singular flag, commas too, and --clear-<field> for null", async () => {
     const { io, calls } = terminal(() =>
       Response.json({ id: "we_1" }, { status: 200 }),

@@ -251,7 +251,7 @@ const environment: Command = (program, ctx) => {
   group
     .command("unset")
     .description(
-      "Forget the default environment and go back to the product's default",
+      "Forget the environment you chose and use the workspace's default",
     )
     .action(() => {
       const config = readConfig(ctx.io.homeDir);
